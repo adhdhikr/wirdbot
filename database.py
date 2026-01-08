@@ -1,10 +1,10 @@
 
-from data.db.connection import DatabaseConnection
-from data.db.repositories.guild import GuildRepository
-from data.db.repositories.schedule import ScheduleRepository
-from data.db.repositories.user import UserRepository
-from data.db.repositories.completion import CompletionRepository
-from data.db.repositories.session import SessionRepository
+from db.connection import DatabaseConnection
+from db.repositories.guild import GuildRepository
+from db.repositories.schedule import ScheduleRepository
+from db.repositories.user import UserRepository
+from db.repositories.completion import CompletionRepository
+from db.repositories.session import SessionRepository
 import os
 
 
