@@ -92,48 +92,11 @@ async def on_guild_join(guild: discord.Guild):
     
     embed.add_field(
         name="🚀 Quick Setup",
-        value=(
-            "1️⃣ Run `/setup` to configure the bot\n"
-            "2️⃣ Set your mosque ID for prayer times\n"
-            "3️⃣ Choose mushaf type (madani/uthmani/indopak)\n"
-            "4️⃣ Set pages per day and channel"
-        ),
+        value="Run `/setup` to configure the bot with an interactive wizard.\n\n**Required Permission:** Manage Channels",
         inline=False
     )
     
-    embed.add_field(
-        name="⏰ Scheduling",
-        value=(
-            "Use `/schedule` to set when pages are sent:\n"
-            "• Add prayer times (Fajr, Dhuhr, Asr, Maghrib, Isha)\n"
-            "• Add custom times (e.g., 14:30 UTC)\n"
-            "• Multiple times per day supported!"
-        ),
-        inline=False
-    )
-    
-    embed.add_field(
-        name="👥 User Features",
-        value=(
-            "• `/register` - Join daily Wird tracking\n"
-            "• `/stats` - View your streaks and progress\n"
-            "• Click 'Mark as Read' on pages to track completion"
-        ),
-        inline=False
-    )
-    
-    embed.add_field(
-        name="⚙️ Additional Configuration",
-        value=(
-            "• `/set_role` - Assign a role to registered users\n"
-            "• `/update` - Modify individual settings\n"
-            "• `/config` - View current configuration\n"
-            "• `/send_now` - Manually trigger page sending"
-        ),
-        inline=False
-    )
-    
-    embed.set_footer(text="Run /setup to get started! • Administrator permission required")
+    embed.set_footer(text="Run /setup to get started!")
     
     # Try to send to system channel or first available text channel
     target_channel = guild.system_channel

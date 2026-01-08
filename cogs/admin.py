@@ -29,8 +29,8 @@ class AdminCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-    @discord.slash_command(name="setup", description="Configure the Wird bot with interactive wizard (Admin only)")
-    @commands.has_permissions(administrator=True)
+    @discord.slash_command(name="setup", description="Configure the Wird bot with interactive wizard (Manage Channels permission required)")
+    @commands.has_permissions(manage_channels=True)
     async def setup(self, ctx: discord.ApplicationContext):
         from cogs.setup_views import SetupWizardView
         from main import db
@@ -141,8 +141,8 @@ class AdminCog(commands.Cog):
             embed.set_footer(text=f"Current time in {timezone}: {current_time}")
         await ctx.respond(embed=embed, ephemeral=True)
 
-    @discord.slash_command(name="schedule", description="Manage scheduled times (Admin only)")
-    @commands.has_permissions(administrator=True)
+    @discord.slash_command(name="schedule", description="Manage scheduled times (Manage Channels permission required)")
+    @commands.has_permissions(manage_channels=True)
     async def schedule(self, ctx: discord.ApplicationContext):
         from cogs.schedule_views import ScheduleMainView
         guild_config = await db.get_guild_config(ctx.guild_id)
@@ -154,43 +154,43 @@ class AdminCog(commands.Cog):
         embed = await view.create_embed()
         await ctx.respond(embed=embed, view=view, ephemeral=True)
 
-    @discord.slash_command(name="set_mushaf", description="Change mushaf type (Admin only)")
-    @commands.has_permissions(administrator=True)
+    @discord.slash_command(name="set_mushaf", description="Change mushaf type (Manage Channels permission required)")
+    @commands.has_permissions(manage_channels=True)
     @option("mushaf", description="Mushaf type", autocomplete=get_mushaf_types)
     async def set_mushaf(self, ctx: discord.ApplicationContext, mushaf: str):
         await db.create_or_update_guild(ctx.guild_id, mushaf_type=mushaf)
         await ctx.respond(f"✅ Updated mushaf to {mushaf}", ephemeral=True)
 
-    @discord.slash_command(name="set_pages", description="Change pages per day (Admin only)")
-    @commands.has_permissions(administrator=True)
+    @discord.slash_command(name="set_pages", description="Change pages per day (Manage Channels permission required)")
+    @commands.has_permissions(manage_channels=True)
     @option("pages_per_day", description="Pages to send per day", min_value=1, max_value=20)
     async def set_pages(self, ctx: discord.ApplicationContext, pages_per_day: int):
         await db.create_or_update_guild(ctx.guild_id, pages_per_day=pages_per_day)
         await ctx.respond(f"✅ Updated pages per day to {pages_per_day}", ephemeral=True)
 
-    @discord.slash_command(name="set_channel", description="Change the wird channel (Admin only)")
-    @commands.has_permissions(administrator=True)
+    @discord.slash_command(name="set_channel", description="Change the wird channel (Manage Channels permission required)")
+    @commands.has_permissions(manage_channels=True)
     @option("channel", description="Channel where pages will be sent", type=discord.TextChannel)
     async def set_channel(self, ctx: discord.ApplicationContext, channel: discord.TextChannel):
         await db.create_or_update_guild(ctx.guild_id, channel_id=channel.id)
         await ctx.respond(f"✅ Updated channel to {channel.mention}", ephemeral=True)
 
-    @discord.slash_command(name="set_mosque", description="Change mosque ID for prayer times (Admin only)")
-    @commands.has_permissions(administrator=True)
+    @discord.slash_command(name="set_mosque", description="Change mosque ID for prayer times (Manage Channels permission required)")
+    @commands.has_permissions(manage_channels=True)
     @option("mosque_id", description="Mosque ID")
     async def set_mosque(self, ctx: discord.ApplicationContext, mosque_id: str):
         await db.create_or_update_guild(ctx.guild_id, mosque_id=mosque_id)
         await ctx.respond(f"✅ Updated mosque ID to {mosque_id}", ephemeral=True)
 
-    @discord.slash_command(name="set_followup_channel", description="Set follow-up reports channel (Admin only)")
-    @commands.has_permissions(administrator=True)
+    @discord.slash_command(name="set_followup_channel", description="Set follow-up reports channel (Manage Channels permission required)")
+    @commands.has_permissions(manage_channels=True)
     @option("channel", description="Channel for follow-up reports", type=discord.TextChannel)
     async def set_followup_channel(self, ctx: discord.ApplicationContext, channel: discord.TextChannel):
         await db.create_or_update_guild(ctx.guild_id, followup_channel_id=channel.id)
         await ctx.respond(f"✅ Updated follow-up channel to {channel.mention}", ephemeral=True)
 
-    @discord.slash_command(name="toggle_followup_on_completion", description="Toggle instant follow-up on completion (Admin only)")
-    @commands.has_permissions(administrator=True)
+    @discord.slash_command(name="toggle_followup_on_completion", description="Toggle instant follow-up on completion (Manage Channels permission required)")
+    @commands.has_permissions(manage_channels=True)
     async def toggle_followup_on_completion(self, ctx: discord.ApplicationContext):
         guild_config = await db.get_guild_config(ctx.guild_id)
         if not guild_config:
@@ -202,7 +202,7 @@ class AdminCog(commands.Cog):
         await ctx.respond(f"✅ Follow-up on completion {status}", ephemeral=True)
 
     @discord.slash_command(name="update", description="[DEPRECATED] Use specific set_ commands instead")
-    @commands.has_permissions(administrator=True)
+    @commands.has_permissions(manage_channels=True)
     @option("setting", choices=["mushaf", "pages_per_day", "channel", "mosque_id", "followup_channel", "followup_on_completion"])
     @option("value", description="New value for the setting")
     async def update(self, ctx: discord.ApplicationContext, setting: str, value: str):
@@ -230,14 +230,14 @@ class AdminCog(commands.Cog):
         except ValueError:
             await ctx.respond("Invalid value!", ephemeral=True)
 
-    @discord.slash_command(name="set_role", description="Set the Wird role (Admin only)")
-    @commands.has_permissions(administrator=True)
+    @discord.slash_command(name="set_role", description="Set the Wird role (Manage Channels permission required)")
+    @commands.has_permissions(manage_channels=True)
     async def set_role(self, ctx: discord.ApplicationContext, role: discord.Role):
         await db.create_or_update_guild(ctx.guild_id, wird_role_id=role.id)
         await ctx.respond(f"✅ Set Wird role to {role.mention}", ephemeral=True)
 
-    @discord.slash_command(name="toggle_notifications", description="Toggle notification settings (Admin only)")
-    @commands.has_permissions(administrator=True)
+    @discord.slash_command(name="toggle_notifications", description="Toggle notification settings (Manage Channels permission required)")
+    @commands.has_permissions(manage_channels=True)
     async def toggle_notifications(self, ctx: discord.ApplicationContext):
         guild_config = await db.get_guild_config(ctx.guild_id)
         if not guild_config or not guild_config['configured']:
@@ -264,8 +264,8 @@ class AdminCog(commands.Cog):
         
         await ctx.respond(embed=embed, ephemeral=True)
 
-    @discord.slash_command(name="send_now", description="Manually send today's pages (Admin only)")
-    @commands.has_permissions(administrator=True)
+    @discord.slash_command(name="send_now", description="Manually send today's pages (Manage Channels permission required)")
+    @commands.has_permissions(manage_channels=True)
     async def send_now(self, ctx: discord.ApplicationContext):
         await ctx.defer(ephemeral=True)
         guild_config = await db.get_guild_config(ctx.guild_id)
@@ -281,15 +281,15 @@ class AdminCog(commands.Cog):
         else:
             await ctx.respond(f"❌ Failed to send pages. {page_msg}", ephemeral=True)
 
-    @discord.slash_command(name="set_page", description="Set the current Quran page (Admin only)")
-    @commands.has_permissions(administrator=True)
+    @discord.slash_command(name="set_page", description="Set the current Quran page (Manage Channels permission required)")
+    @commands.has_permissions(manage_channels=True)
     @option("page", description="Current Quran page", min_value=1, max_value=604)
     async def set_page(self, ctx: discord.ApplicationContext, page: int):
         await db.create_or_update_guild(ctx.guild_id, current_page=page)
         await ctx.respond(f"✅ Set current Quran page to {page}", ephemeral=True)
 
     @discord.slash_command(name="reset_server", description="Reset all server data with confirmation (Admin only - DANGER!)")
-    @commands.has_permissions(administrator=True)
+    @commands.has_permissions(manage_channels=True)
     async def reset_server(self, ctx: discord.ApplicationContext):
         embed = discord.Embed(
             title="⚠️ DANGER: Reset Server Data",
