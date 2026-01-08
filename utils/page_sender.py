@@ -58,7 +58,8 @@ async def send_daily_pages(guild_id: int, bot) -> bool:
 
             # Send the image directly with a simple message and the completion button
             view = PageView(page_num)
-            content = f"{role_mention} 📖 **Page {page_num}** - Page {i+1} of {pages_per_day} for today".strip()
+            mention = role_mention if i == 0 else ""
+            content = f"{mention} 📖 **Page {page_num}** - Page {i+1} of {pages_per_day} for today".strip()
             msg = await channel.send(content=content, file=image_file, view=view)
             message_ids.append(str(msg.id))
         except Exception as e:
