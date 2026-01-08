@@ -59,20 +59,24 @@ class UserCog(commands.Cog):
     async def register(self, ctx: discord.ApplicationContext):
         db = Database()
         await db.connect()
-        
         try:
             user = await db.get_user(ctx.author.id, ctx.guild_id)
             if user and user['registered']:
                 await ctx.respond("You're already registered!", ephemeral=True)
                 return
-            await db.register_user(ctx.author.id, ctx.guild_id)
-            await assign_role(ctx.author, ctx.guild_id)
-            await ctx.respond("✅ You've been registered for daily Wird tracking!", ephemeral=True)
-            # Update the followup/progress message after registration
-            from utils.followup import send_followup_message
-            await send_followup_message(ctx.guild_id, self.bot)
         finally:
             await db.close()
+
+        # Use unified registration and role logic
+        from utils.user_management import register_user_and_assign_role
+        await register_user_and_assign_role(
+            ctx.author,
+            ctx.guild_id,
+            respond_func=lambda msg: ctx.respond(msg, ephemeral=True)
+        )
+        # Update the followup/progress message after registration
+        from utils.followup import send_followup_message
+        await send_followup_message(ctx.guild_id, self.bot)
 
     @discord.slash_command(name="unregister", description="Unregister from daily Wird tracking")
     async def unregister(self, ctx: discord.ApplicationContext):

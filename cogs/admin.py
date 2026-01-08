@@ -108,40 +108,36 @@ class AdminCog(commands.Cog):
     async def config(self, ctx: discord.ApplicationContext):
         db = Database()
         await db.connect()
-        
         try:
             guild_config = await db.get_guild_config(ctx.guild_id)
-            
             if not guild_config or not guild_config['configured']:
                 await ctx.respond("Server not configured! Use `/setup` to configure.", ephemeral=True)
                 return
-            
             scheduled_times = await db.get_scheduled_times(ctx.guild_id)
-            
-            # Format scheduled times with timezone conversion
             timezone = guild_config.get('timezone', 'UTC')
             import pytz
-            from datetime import datetime
-            
+            from datetime import datetime, timedelta
             times_str = ""
+            next_schedule_dt = None
             for st in scheduled_times:
                 if st['time_type'] == 'custom':
-                    # Convert UTC time to local timezone
                     utc_time = datetime.strptime(st['time_value'], '%H:%M').replace(tzinfo=pytz.UTC)
                     local_tz = pytz.timezone(timezone)
                     local_time = utc_time.astimezone(local_tz)
-                    # Format with hour without leading zero but keep minutes with leading zero
                     formatted_time = local_time.strftime('%I:%M %p')
-                    # Only strip leading zero from hour (before colon)
                     if formatted_time[0] == '0':
                         formatted_time = formatted_time[1:]
                     times_str += f"• Custom: {formatted_time} ({timezone})\n"
+                    now = datetime.now(local_tz)
+                    next_time = local_time.replace(year=now.year, month=now.month, day=now.day)
+                    if next_time < now:
+                        next_time += timedelta(days=1)
+                    if not next_schedule_dt or next_time < next_schedule_dt:
+                        next_schedule_dt = next_time
                 else:
                     times_str += f"• Prayer: {st['time_type'].title()}\n"
-            
             if not times_str:
                 times_str = "No scheduled times set"
-            
             embed = discord.Embed(title="⚙️ Server Configuration", color=discord.Color.blue())
             embed.add_field(name="🌍 Timezone", value=timezone, inline=True)
             embed.add_field(name="🕌 Mosque ID", value=guild_config['mosque_id'] or "Not set", inline=True)
@@ -153,12 +149,13 @@ class AdminCog(commands.Cog):
             embed.add_field(name="💬 Follow-up Channel", value=f"<#{guild_config['followup_channel_id']}>" if guild_config['followup_channel_id'] else "Same as main channel", inline=True)
             embed.add_field(name="✅ Follow-up on Completion", value="✅" if guild_config['followup_on_completion'] else "❌", inline=True)
             embed.add_field(name="⏰ Scheduled Times", value=times_str, inline=False)
-            
-            # Show current time in their timezone
             tz = pytz.timezone(timezone)
             current_time = datetime.now(tz).strftime('%I:%M %p, %B %d, %Y')
-            embed.set_footer(text=f"Current time in {timezone}: {current_time}")
-            
+            if next_schedule_dt:
+                unix_ts = int(next_schedule_dt.timestamp())
+                embed.set_footer(text=f"Current time in {timezone}: {current_time} | Next scheduled: <t:{unix_ts}:R>")
+            else:
+                embed.set_footer(text=f"Current time in {timezone}: {current_time}")
             await ctx.respond(embed=embed, ephemeral=True)
         finally:
             await db.close()
@@ -322,50 +319,36 @@ class AdminCog(commands.Cog):
     @commands.has_permissions(administrator=True)
     async def send_now(self, ctx: discord.ApplicationContext):
         await ctx.defer(ephemeral=True)
-        
         db = Database()
         await db.connect()
-        
         try:
             guild_config = await db.get_guild_config(ctx.guild_id)
             if not guild_config or not guild_config['configured']:
                 await ctx.respond("Please run `/setup` first!", ephemeral=True)
                 return
+            current_page = guild_config.get('current_page', None)
         finally:
             await db.close()
-        
         from utils.page_sender import send_daily_pages
         success = await send_daily_pages(ctx.guild_id, self.bot)
-        
+        page_msg = f"Today's Wird is Quran page {current_page}." if current_page else "Current page not set."
         if success:
-            await ctx.respond("✅ Pages sent successfully!", ephemeral=True)
+            await ctx.respond(f"✅ Pages sent successfully! {page_msg}", ephemeral=True)
         else:
-            await ctx.respond("❌ Failed to send pages", ephemeral=True)
+            await ctx.respond(f"❌ Failed to send pages. {page_msg}", ephemeral=True)
 
-    @discord.slash_command(name="force_send", description="Force send pages immediately (Admin only)")
+    @discord.slash_command(name="set_page", description="Set the current Quran page (Admin only)")
     @commands.has_permissions(administrator=True)
-    async def force_send(self, ctx: discord.ApplicationContext):
-        await ctx.defer(ephemeral=True)
-        
+    @option("page", description="Current Quran page", min_value=1, max_value=604)
+    async def set_page(self, ctx: discord.ApplicationContext, page: int):
         db = Database()
         await db.connect()
-        
         try:
-            guild_config = await db.get_guild_config(ctx.guild_id)
-            if not guild_config or not guild_config['configured']:
-                await ctx.respond("⚠️ Please run `/setup` first!", ephemeral=True)
-                return
+            await db.create_or_update_guild(ctx.guild_id, current_page=page)
+            await ctx.respond(f"✅ Set current Quran page to {page}", ephemeral=True)
         finally:
             await db.close()
-        
-        from utils.page_sender import send_daily_pages
-        success = await send_daily_pages(ctx.guild_id, self.bot)
-        
-        if success:
-            await ctx.respond("✅ Wird pages have been force sent!", ephemeral=True)
-        else:
-            await ctx.respond("❌ Failed to force send pages. Check logs for details.", ephemeral=True)
-
+            
 
 def setup(bot):
     bot.add_cog(AdminCog(bot))
