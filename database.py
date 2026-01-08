@@ -1,9 +1,12 @@
-from db.connection import DatabaseConnection
-from db.repositories.guild import GuildRepository
-from db.repositories.schedule import ScheduleRepository
-from db.repositories.user import UserRepository
-from db.repositories.completion import CompletionRepository
-from db.repositories.session import SessionRepository
+
+from data.db.connection import DatabaseConnection
+from data.db.repositories.guild import GuildRepository
+from data.db.repositories.schedule import ScheduleRepository
+from data.db.repositories.user import UserRepository
+from data.db.repositories.completion import CompletionRepository
+from data.db.repositories.session import SessionRepository
+import os
+
 
 
 
@@ -11,14 +14,18 @@ class Database:
     _instance = None
     _initialized = False
 
-    def __new__(cls, db_path: str = "wird.db"):
+    def __new__(cls, db_path: str = "data/wird.db"):
         if cls._instance is None:
             cls._instance = super(Database, cls).__new__(cls)
         return cls._instance
 
-    def __init__(self, db_path: str = "wird.db"):
+    def __init__(self, db_path: str = "data/wird.db"):
         if self.__class__._initialized:
             return
+        # Ensure the data directory exists
+        data_dir = os.path.dirname(db_path)
+        if data_dir and not os.path.exists(data_dir):
+            os.makedirs(data_dir, exist_ok=True)
         self.connection = DatabaseConnection(db_path)
         self.guilds = GuildRepository(self.connection)
         self.schedules = ScheduleRepository(self.connection)

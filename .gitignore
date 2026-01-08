@@ -1,3 +1,7 @@
+# Ignore data directory and database file
+data/
+# Ignore data directory
+data/
 .env
 *.db
 __pycache__/
