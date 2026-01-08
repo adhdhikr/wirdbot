@@ -46,6 +46,27 @@ async def on_interaction(interaction: discord.Interaction):
             except (ValueError, IndexError):
                 logger.warning(f"Invalid completion button custom_id: {custom_id}")
                 return
+        elif custom_id.startswith('translate_'):
+            try:
+                page_number = int(custom_id.split('_')[1])
+                from utils.interaction_handlers import handle_translation
+                await handle_translation(interaction, page_number)
+                return  # Handled
+            except (ValueError, IndexError):
+                logger.warning(f"Invalid translation button custom_id: {custom_id}")
+                return
+        elif custom_id.startswith('tafsir_'):
+            parts = custom_id.split('_')
+            if len(parts) >= 2 and parts[1].isdigit():
+                try:
+                    page_number = int(parts[1])
+                    from utils.interaction_handlers import handle_tafsir
+                    await handle_tafsir(interaction, page_number)
+                    return  # Handled
+                except (ValueError, IndexError):
+                    logger.warning(f"Invalid tafsir button custom_id: {custom_id}")
+                    return
+            # Else, not handled here, let it go to normal processing
     
     # Continue with normal processing for other interactions
     try:

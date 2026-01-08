@@ -8,10 +8,8 @@ logger = logging.getLogger(__name__)
 TAFSIR_API_BASE = "https://cdn.jsdelivr.net/gh/spa5k/tafsir_api@main/tafsir"
 
 TAFSIR_EDITIONS = {
-    'ar-tafsir-al-tabari': 'Tafsir al-Tabari (العربية)',
+    'en-tafisr-ibn-kathir': 'Tafsir Ibn Kathir (English)',
     'ar-tafsir-ibn-kathir': 'Tafsir Ibn Kathir (العربية)',
-    'ar-tafseer-tanwir-al-miqbas': 'Tafseer Tanwir al-Miqbas (العربية)',
-    'en-tafisr-ibn-kathir': 'Tafsir Ibn Kathir (English)'
 }
 
 async def get_ayahs_for_page(page_number: int) -> List[Dict[str, Any]]:
