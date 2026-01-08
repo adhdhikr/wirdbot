@@ -13,13 +13,22 @@ class DatabaseConnection:
         self.migrations_dir = Path(__file__).parent.parent / "migrations"
 
     async def connect(self):
+        await self._connect()
+        await self._run_migrations()
+
+    async def _connect(self):
         self.db = await aiosqlite.connect(self.db_path)
         self.db.row_factory = aiosqlite.Row
-        await self._run_migrations()
 
     async def close(self):
         if self.db:
             await self.db.close()
+
+    async def _ensure_connected(self):
+        """Ensure the database connection is open, reconnecting if necessary."""
+        if self.db is None or self.db.closed:
+            logger.info("Database connection closed, reconnecting...")
+            await self._connect()
 
     async def _run_migrations(self):
         await self._ensure_migrations_table()
@@ -72,15 +81,18 @@ class DatabaseConnection:
         await self.db.commit()
 
     async def execute_one(self, query: str, params: tuple = ()):
+        await self._ensure_connected()
         async with self.db.execute(query, params) as cursor:
             row = await cursor.fetchone()
             return dict(row) if row else None
 
     async def execute_many(self, query: str, params: tuple = ()):
+        await self._ensure_connected()
         async with self.db.execute(query, params) as cursor:
             rows = await cursor.fetchall()
             return [dict(row) for row in rows]
 
     async def execute_write(self, query: str, params: tuple = ()):
+        await self._ensure_connected()
         await self.db.execute(query, params)
         await self.db.commit()
