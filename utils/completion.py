@@ -29,7 +29,8 @@ async def handle_completion(interaction: discord.Interaction, page_number: int):
     completions = await db.get_user_completions_for_date(interaction.user.id, interaction.guild_id, today)
     
     if page_number in completions:
-        await interaction.response.send_message("✅ You already marked this page as read!", ephemeral=True)
+        if guild_config.get('show_all_notifications', False):
+            await interaction.response.send_message("✅ You already marked this page as read!", ephemeral=True)
         return
     
     await db.mark_page_complete(interaction.user.id, interaction.guild_id, page_number, today)
@@ -52,13 +53,22 @@ async def handle_completion(interaction: discord.Interaction, page_number: int):
         current_streak = await calculate_streak(user, today)
         await db.update_streak(interaction.user.id, interaction.guild_id, current_streak, today)
 
-        streak_line = f"🔥 Current streak: {current_streak} days" if current_streak > 1 else ""
-        await interaction.response.send_message(
-            f"✅ Page {page_number} marked as complete!\n"
-            f"🎉 You've completed all pages for today!\n"
-            f"{streak_line}",
-            ephemeral=True
-        )
+        if guild_config.get('show_all_notifications', False):
+            streak_line = f"🔥 Current streak: {current_streak} days" if current_streak > 1 else ""
+            await interaction.response.send_message(
+                f"✅ Page {page_number} marked as complete!\n"
+                f"🎉 You've completed all pages for today!\n"
+                f"{streak_line}",
+                ephemeral=True
+            )
+        else:
+            # When notifications disabled, only show completion celebration
+            streak_line = f"🔥 Current streak: {current_streak} days" if current_streak > 1 else ""
+            await interaction.response.send_message(
+                f"🎉 You've completed all pages for today!\n"
+                f"{streak_line}",
+                ephemeral=True
+            )
 
         if guild_config['followup_on_completion']:
             # Send a simple followup message: "x completed the wird (+ streak if there is)"
@@ -69,11 +79,12 @@ async def handle_completion(interaction: discord.Interaction, page_number: int):
                 await channel.send(f"✅ {interaction.user.mention} completed the wird{streak_text}")
     else:
         # Don't update streak if not all pages are done
-        await interaction.response.send_message(
-            f"✅ Page {page_number} marked as complete!\n"
-            f"📖 Progress: {len(completions)}/{total_pages} pages",
-            ephemeral=True
-        )
+        if guild_config.get('show_all_notifications', False):
+            await interaction.response.send_message(
+                f"✅ Page {page_number} marked as complete!\n"
+                f"📖 Progress: {len(completions)}/{total_pages} pages",
+                ephemeral=True
+            )
     # Always update the summary embed (progress message) when a user completes all their pages for the day
     await send_followup_message(interaction.guild_id, interaction.client)
 

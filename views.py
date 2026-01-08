@@ -24,10 +24,115 @@ class CompletionButton(discord.ui.Button):
         await handle_completion(interaction, page_number)
 
 
+class TranslationButton(discord.ui.Button):
+    def __init__(self, page_number: int):
+        super().__init__(
+            style=discord.ButtonStyle.primary,
+            label="📖 Translate",
+            custom_id=f"translate_{page_number}"
+        )
+
+    async def callback(self, interaction: discord.Interaction):
+        # Parse page number from custom_id
+        custom_id = interaction.data.get('custom_id', '')
+        try:
+            page_number = int(custom_id.split('_')[1])
+        except (ValueError, IndexError):
+            await interaction.response.send_message("Invalid button interaction!", ephemeral=True)
+            return
+
+        from database import db
+        from utils.translation import fetch_page_translations, format_translations
+
+        # Get user's language preference
+        language = await db.get_user_language_preference(interaction.user.id, interaction.guild_id)
+
+        # Fetch translations
+        translations = await fetch_page_translations(page_number, language)
+        if translations is None:
+            await interaction.response.send_message("❌ Failed to fetch translations. Please try again later.", ephemeral=True)
+            return
+
+        formatted_text = await format_translations(translations)
+
+        # Create the translation view with language switch buttons
+        view = TranslationView(page_number, language)
+
+        embed = discord.Embed(
+            title=f"📖 Page {page_number} Translation",
+            description=formatted_text[:4000],  # Discord embed description limit
+            color=discord.Color.blue()
+        )
+
+        await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
+
+
+class TranslationView(discord.ui.View):
+    def __init__(self, page_number: int, current_language: str):
+        super().__init__(timeout=300)  # 5 minutes timeout
+        self.page_number = page_number
+        self.current_language = current_language
+
+        # Add language buttons
+        self.add_item(LanguageButton(page_number, 'eng', 'English', current_language == 'eng'))
+        self.add_item(LanguageButton(page_number, 'fra', 'Français', current_language == 'fra'))
+
+
+class LanguageButton(discord.ui.Button):
+    def __init__(self, page_number: int, language: str, label: str, disabled: bool = False):
+        super().__init__(
+            style=discord.ButtonStyle.secondary if not disabled else discord.ButtonStyle.success,
+            label=label,
+            disabled=disabled,
+            custom_id=f"lang_{language}_{page_number}"
+        )
+
+    async def callback(self, interaction: discord.Interaction):
+        # Parse language and page number from custom_id
+        custom_id = interaction.data.get('custom_id', '')
+        parts = custom_id.split('_')
+        if len(parts) < 3:
+            await interaction.response.send_message("Invalid button interaction!", ephemeral=True)
+            return
+
+        language = parts[1]
+        try:
+            page_number = int(parts[2])
+        except ValueError:
+            await interaction.response.send_message("Invalid button interaction!", ephemeral=True)
+            return
+
+        from database import db
+        from utils.translation import fetch_page_translations, format_translations
+
+        # Update user's language preference
+        await db.set_user_language_preference(interaction.user.id, interaction.guild_id, language)
+
+        # Fetch translations in new language
+        translations = await fetch_page_translations(page_number, language)
+        if translations is None:
+            await interaction.response.send_message("❌ Failed to fetch translations. Please try again later.", ephemeral=True)
+            return
+
+        formatted_text = await format_translations(translations)
+
+        # Update the view with new language selection
+        view = TranslationView(page_number, language)
+
+        embed = discord.Embed(
+            title=f"📖 Page {page_number} Translation",
+            description=formatted_text[:4000],
+            color=discord.Color.blue()
+        )
+
+        await interaction.response.edit_message(embed=embed, view=view)
+
+
 class PageView(discord.ui.View):
     def __init__(self, page_number: int):
         super().__init__(timeout=None)  # Views persist until bot restart
         self.add_item(CompletionButton(page_number))
+        self.add_item(TranslationButton(page_number))
 
 
 class RegistrationView(discord.ui.View):

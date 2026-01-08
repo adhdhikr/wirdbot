@@ -103,6 +103,12 @@ class Database:
         await self.schedules.clear_all(guild_id)
         await self.guilds.delete(guild_id)
 
+    async def get_user_language_preference(self, user_id: int, guild_id: int) -> str:
+        return await self.users.get_language_preference(user_id, guild_id)
+
+    async def set_user_language_preference(self, user_id: int, guild_id: int, language: str):
+        await self.users.set_language_preference(user_id, guild_id, language)
+
 
 # Global singleton instance
 db = Database()

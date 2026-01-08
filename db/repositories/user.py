@@ -48,3 +48,13 @@ class UserRepository:
             "DELETE FROM users WHERE guild_id = ?",
             (guild_id,)
         )
+
+    async def get_language_preference(self, user_id: int, guild_id: int) -> str:
+        user = await self.get(user_id, guild_id)
+        return user.get('language_preference', 'eng') if user else 'eng'
+
+    async def set_language_preference(self, user_id: int, guild_id: int, language: str):
+        await self.db.execute_write(
+            "UPDATE users SET language_preference = ? WHERE user_id = ? AND guild_id = ?",
+            (language, user_id, guild_id)
+        )
