@@ -9,16 +9,24 @@ class CompletionButton(discord.ui.Button):
             label="Mark as Read",
             custom_id=f"complete_{page_number}"
         )
-        self.page_number = page_number
+        # Don't store page_number - we'll parse it from custom_id in callback
 
     async def callback(self, interaction: discord.Interaction):
+        # Parse page number from custom_id
+        custom_id = interaction.data.get('custom_id', '')
+        try:
+            page_number = int(custom_id.split('_')[1])
+        except (ValueError, IndexError):
+            await interaction.response.send_message("Invalid button interaction!", ephemeral=True)
+            return
+        
         from utils.completion import handle_completion
-        await handle_completion(interaction, self.page_number)
+        await handle_completion(interaction, page_number)
 
 
 class PageView(discord.ui.View):
     def __init__(self, page_number: int):
-        super().__init__(timeout=None)
+        super().__init__(timeout=None)  # Views persist until bot restart
         self.add_item(CompletionButton(page_number))
 
 

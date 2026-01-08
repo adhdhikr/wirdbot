@@ -32,6 +32,28 @@ async def on_ready():
     logger.info(f"Logged in as {bot.user.name} ({bot.user.id})")
 
 
+@bot.event 
+async def on_interaction(interaction: discord.Interaction):
+    # Handle completion button interactions that aren't handled by registered views
+    if interaction.type == discord.InteractionType.component:
+        custom_id = interaction.data.get('custom_id', '')
+        if custom_id.startswith('complete_'):
+            try:
+                page_number = int(custom_id.split('_')[1])
+                from utils.completion import handle_completion
+                await handle_completion(interaction, page_number)
+                return  # Handled
+            except (ValueError, IndexError):
+                logger.warning(f"Invalid completion button custom_id: {custom_id}")
+                return
+    
+    # Continue with normal processing for other interactions
+    try:
+        await bot.process_application_commands(interaction)
+    except Exception as e:
+        logger.error(f"Error processing interaction: {e}")
+
+
 @bot.event
 async def on_disconnect():
     await db.close()
