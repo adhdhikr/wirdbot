@@ -58,13 +58,10 @@ class UserCog(commands.Cog):
     @discord.slash_command(name="register", description="Register for daily Wird tracking")
     async def register(self, ctx: discord.ApplicationContext):
         # use shared db instance
-        try:
-            user = await db.get_user(ctx.author.id, ctx.guild_id)
-            if user and user['registered']:
-                await ctx.respond("You're already registered!", ephemeral=True)
-                return
-        finally:
-            await db.close()
+        user = await db.get_user(ctx.author.id, ctx.guild_id)
+        if user and user['registered']:
+            await ctx.respond("You're already registered!", ephemeral=True)
+            return
 
         # Use unified registration and role logic
         from utils.user_management import register_user_and_assign_role
