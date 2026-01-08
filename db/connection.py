@@ -23,28 +23,27 @@ class DatabaseConnection:
 
     async def _run_migrations(self):
         await self._ensure_migrations_table()
-        
         migration_files = sorted(self.migrations_dir.glob("*.sql"))
-        
         for migration_file in migration_files:
             version = int(migration_file.stem.split("_")[0])
             name = migration_file.stem
-            
-            if await self._is_migration_applied(version):
+            # Start a transaction for each migration, but don't nest
+            already_applied = await self._is_migration_applied(version)
+            if already_applied:
                 logger.debug(f"Migration {name} already applied, skipping")
                 continue
-            
             logger.info(f"Applying migration: {name}")
-            
             with open(migration_file, 'r') as f:
                 sql = f.read()
-            
             try:
+                await self.db.execute("BEGIN;")
                 cursor = await self.db.executescript(sql)
                 await cursor.close()
                 await self._mark_migration_applied(version, name)
+                await self.db.commit()
                 logger.info(f"Migration {name} applied successfully")
             except Exception as e:
+                await self.db.rollback()
                 logger.error(f"Failed to apply migration {name}: {e}")
                 raise
 

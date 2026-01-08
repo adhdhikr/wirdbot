@@ -24,6 +24,7 @@ async def get_mushaf_types(ctx: discord.AutocompleteContext):
     return ["madani", "uthmani", "indopak"]
 
 
+
 class AdminCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
@@ -32,9 +33,7 @@ class AdminCog(commands.Cog):
     @commands.has_permissions(administrator=True)
     async def setup(self, ctx: discord.ApplicationContext):
         from cogs.setup_views import SetupWizardView
-        
-        # Check if already configured
-        db = Database()
+        from main import db
         await db.connect()
         
         try:
@@ -104,8 +103,8 @@ class AdminCog(commands.Cog):
         finally:
             await db.close()
 
-    @discord.slash_command(name="config", description="View current server configuration")
-    async def config(self, ctx: discord.ApplicationContext):
+            from main import db
+            await db.connect()
         db = Database()
         await db.connect()
         try:

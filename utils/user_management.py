@@ -1,10 +1,9 @@
 import discord
-from database import Database
+from main import db
 
 
 async def register_user_with_role(interaction: discord.Interaction):
-    db = Database()
-    await db.connect()
+    # use shared db instance
     try:
         await db.register_user(interaction.user.id, interaction.guild_id)
         guild_config = await db.get_guild_config(interaction.guild_id)
@@ -39,8 +38,7 @@ async def register_user_with_role(interaction: discord.Interaction):
         - guild_id: int
         - respond_func: async function to send a response (optional)
         """
-        db = Database()
-        await db.connect()
+        # use shared db instance
         try:
             # Determine user and guild objects
             if hasattr(user_or_interaction, 'user') and hasattr(user_or_interaction, 'guild_id'):
@@ -86,8 +84,7 @@ async def register_user_with_role(interaction: discord.Interaction):
 
 
 async def assign_role(user: discord.Member, guild_id: int):
-    db = Database()
-    await db.connect()
+    # use shared db instance
     
     try:
         guild_config = await db.get_guild_config(guild_id)
@@ -102,8 +99,7 @@ async def assign_role(user: discord.Member, guild_id: int):
 
 
 async def remove_role(user: discord.Member, guild_id: int):
-    db = Database()
-    await db.connect()
+    # use shared db instance
     
     try:
         guild_config = await db.get_guild_config(guild_id)

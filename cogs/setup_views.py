@@ -1,3 +1,7 @@
+# At the end of the file, add the setup function for extension loading
+
+def setup(bot):
+    pass
 import discord
 from discord.ui import View, Button, Select, Modal, InputText
 from database import Database

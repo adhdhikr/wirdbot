@@ -6,15 +6,26 @@ from db.repositories.completion import CompletionRepository
 from db.repositories.session import SessionRepository
 
 
+
 class Database:
+    _instance = None
+    _initialized = False
+
+    def __new__(cls, db_path: str = "wird.db"):
+        if cls._instance is None:
+            cls._instance = super(Database, cls).__new__(cls)
+        return cls._instance
+
     def __init__(self, db_path: str = "wird.db"):
+        if self.__class__._initialized:
+            return
         self.connection = DatabaseConnection(db_path)
-        
         self.guilds = GuildRepository(self.connection)
         self.schedules = ScheduleRepository(self.connection)
         self.users = UserRepository(self.connection)
         self.completions = CompletionRepository(self.connection)
         self.sessions = SessionRepository(self.connection)
+        self.__class__._initialized = True
 
     async def connect(self):
         await self.connection.connect()
