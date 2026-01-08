@@ -5,7 +5,7 @@ from config import MIN_PAGES_PER_DAY, MAX_PAGES_PER_DAY
 
 async def handle_setup(interaction: discord.Interaction, children):
     db = Database()
-    await db.connect()
+    # ...existing code...
     
     try:
         mosque_id = children[0].value
@@ -45,5 +45,3 @@ async def handle_setup(interaction: discord.Interaction, children):
         )
     except ValueError:
         await interaction.response.send_message("Invalid input! Please check your values.", ephemeral=True)
-    finally:
-        await db.close()

@@ -37,61 +37,56 @@ async def register_user_with_role(interaction: discord.Interaction):
         - respond_func: async function to send a response (optional)
         """
         # use shared db instance
-        try:
             # Determine user and guild objects
-            if hasattr(user_or_interaction, 'user') and hasattr(user_or_interaction, 'guild_id'):
-                # It's an Interaction
-                user = user_or_interaction.user
-                guild = user_or_interaction.guild
-                interaction = user_or_interaction
-            else:
-                # It's a Member (from slash command)
-                user = user_or_interaction
-                guild = user.guild
-                interaction = None
+        if hasattr(user_or_interaction, 'user') and hasattr(user_or_interaction, 'guild_id'):
+            # It's an Interaction
+            user = user_or_interaction.user
+            guild = user_or_interaction.guild
+            interaction = user_or_interaction
+        else:
+            # It's a Member (from slash command)
+            user = user_or_interaction
+            guild = user.guild
+            interaction = None
 
-            await db.register_user(user.id, guild_id)
-            guild_config = await db.get_guild_config(guild_id)
-            role = None
-            # Try to get the role from config, or create if missing
-            if guild_config and guild_config['wird_role_id']:
-                role = guild.get_role(guild_config['wird_role_id'])
-            if not role:
-                # Create the role if it doesn't exist
-                try:
-                    role = await guild.create_role(name="Wird", reason="Wird registered users")
-                    await db.create_or_update_guild(guild_id, wird_role_id=role.id)
-                except Exception:
-                    role = None
-            if role:
-                try:
-                    await user.add_roles(role)
-                except Exception:
-                    pass
+        await db.register_user(user.id, guild_id)
+        guild_config = await db.get_guild_config(guild_id)
+        role = None
+        # Try to get the role from config, or create if missing
+        if guild_config and guild_config['wird_role_id']:
+            role = guild.get_role(guild_config['wird_role_id'])
+        if not role:
+            # Create the role if it doesn't exist
+            try:
+                role = await guild.create_role(name="Wird", reason="Wird registered users")
+                await db.create_or_update_guild(guild_id, wird_role_id=role.id)
+            except Exception:
+                role = None
+        if role:
+            try:
+                await user.add_roles(role)
+            except Exception:
+                pass
 
-            # Respond appropriately
-            if interaction:
-                await interaction.response.edit_message(
-                    content="✅ You've been registered for daily Wird tracking! You'll now be able to track your progress.",
-                    view=None
-                )
-            elif respond_func:
+        # Respond appropriately
+        if interaction:
+            await interaction.response.edit_message(
+                content="✅ You've been registered for daily Wird tracking! You'll now be able to track your progress.",
+                view=None
+            )
+        elif respond_func:
                 await respond_func("✅ You've been registered for daily Wird tracking! You'll now be able to track your progress.")
-        finally:
-            await db.close()
+        # Do not close db here; keep connection open for app lifetime
 
 
 async def assign_role(user: discord.Member, guild_id: int):
     # use shared db instance
     
-    try:
-        guild_config = await db.get_guild_config(guild_id)
-        if guild_config and guild_config['wird_role_id']:
-            role = user.guild.get_role(guild_config['wird_role_id'])
-            if role and role not in user.roles:
-                await user.add_roles(role)
-    finally:
-        await db.close()
+    guild_config = await db.get_guild_config(guild_id)
+    if guild_config and guild_config['wird_role_id']:
+        role = user.guild.get_role(guild_config['wird_role_id'])
+        if role and role not in user.roles:
+            await user.add_roles(role)
 
     # assign_role is now handled by register_user_and_assign_role
 
@@ -99,11 +94,8 @@ async def assign_role(user: discord.Member, guild_id: int):
 async def remove_role(user: discord.Member, guild_id: int):
     # use shared db instance
     
-    try:
-        guild_config = await db.get_guild_config(guild_id)
-        if guild_config and guild_config['wird_role_id']:
-            role = user.guild.get_role(guild_config['wird_role_id'])
-            if role and role in user.roles:
-                await user.remove_roles(role)
-    finally:
-        await db.close()
+    guild_config = await db.get_guild_config(guild_id)
+    if guild_config and guild_config['wird_role_id']:
+        role = user.guild.get_role(guild_config['wird_role_id'])
+        if role and role in user.roles:
+            await user.remove_roles(role)

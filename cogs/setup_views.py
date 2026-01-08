@@ -641,7 +641,7 @@ class FinalConfigView(View):
     async def finish_setup(self, interaction: discord.Interaction):
         """Save configuration to database"""
         db = Database()
-        await db.connect()
+        # ...existing code...
         
         try:
             # Set defaults
@@ -687,8 +687,6 @@ class FinalConfigView(View):
             await interaction.response.edit_message(embed=embed, view=None)
         except Exception as e:
             await interaction.response.send_message(f"❌ Error during setup: {str(e)}", ephemeral=True)
-        finally:
-            await db.close()
     
     async def back(self, interaction: discord.Interaction):
         """Go back to mushaf selection"""

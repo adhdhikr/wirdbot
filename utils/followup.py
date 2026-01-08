@@ -7,7 +7,7 @@ logger = logging.getLogger(__name__)
 
 async def send_followup_message(guild_id: int, bot):
     db = Database()
-    await db.connect()
+    # ...existing code...
     
     try:
         guild_config = await db.get_guild_config(guild_id)
@@ -109,5 +109,3 @@ async def send_followup_message(guild_id: int, bot):
         await db.update_session_message_ids(guild_id, today, str(new_msg.id))
     except Exception as e:
         logger.error(f"Error sending followup: {e}")
-    finally:
-        await db.close()

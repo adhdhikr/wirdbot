@@ -91,7 +91,6 @@ class ScheduleTimeModal(discord.ui.Modal):
         from datetime import datetime
         
         db = Database()
-        await db.connect()
         
         try:
             # Get guild timezone
@@ -149,6 +148,5 @@ class ScheduleTimeModal(discord.ui.Modal):
             await interaction.response.send_message("Invalid time format! Use HH:MM (e.g., 14:30) or 12-hour (e.g., 8:00 AM)", ephemeral=True)
         except Exception as e:
             await interaction.response.send_message(f"Error: {str(e)}", ephemeral=True)
-        finally:
-            await db.close()
+        # ...existing code...
 

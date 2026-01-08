@@ -27,7 +27,7 @@ async def handle_schedule_time(interaction, time_value: str):
     from database import Database
     
     db = Database()
-    await db.connect()
+    # ...existing code...
     
     try:
         hours, minutes = map(int, time_value.split(":"))
@@ -41,4 +41,4 @@ async def handle_schedule_time(interaction, time_value: str):
     except ValueError:
         await interaction.response.send_message("Invalid time format! Use HH:MM (e.g., 14:30)", ephemeral=True)
     finally:
-        await db.close()
+        # ...existing code...
