@@ -5,6 +5,8 @@ from views import PageView
 from config import API_BASE_URL, MAX_PAGES
 import asyncio
 import logging
+import aiohttp
+import io
 
 logger = logging.getLogger(__name__)
 
@@ -33,24 +35,35 @@ async def send_daily_pages(guild_id: int, bot) -> bool:
         message_ids = []
         today = datetime.utcnow().strftime("%Y-%m-%d")
         
+        # Prepare role mention if exists
+        role_mention = ""
+        if guild_config.get('wird_role_id'):
+            role = guild.get_role(guild_config['wird_role_id'])
+            if role:
+                role_mention = role.mention
+
         for i in range(pages_per_day):
             page_num = current_page + i
             if page_num > MAX_PAGES:
                 page_num = page_num - MAX_PAGES
-            
+
             image_url = f"{API_BASE_URL}/mushaf/{mushaf_type}/page/{page_num}"
-            
-            embed = discord.Embed(
-                title=f"📖 Quran Page {page_num}",
-                description=f"Page {i+1} of {pages_per_day} for today",
-                color=discord.Color.green()
-            )
-            embed.set_image(url=image_url)
-            embed.set_footer(text=f"{mushaf_type.title()} • {today}")
-            
+
             try:
+                # Fetch the image from the API
+                async with aiohttp.ClientSession() as session:
+                    async with session.get(image_url) as response:
+                        if response.status != 200:
+                            logger.error(f"Failed to fetch page {page_num}: HTTP {response.status}")
+                            return False
+
+                        image_data = await response.read()
+                        image_file = discord.File(io.BytesIO(image_data), filename=f"page_{page_num}.png")
+
+                # Send the image directly with a simple message and the completion button
                 view = PageView(page_num)
-                msg = await channel.send(embed=embed, view=view)
+                content = f"{role_mention} 📖 **Page {page_num}** - Page {i+1} of {pages_per_day} for today".strip()
+                msg = await channel.send(content=content, file=image_file, view=view)
                 message_ids.append(str(msg.id))
             except Exception as e:
                 logger.error(f"Error sending page {page_num}: {e}")

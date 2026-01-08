@@ -72,3 +72,6 @@ class Database:
     
     async def get_all_configured_guilds(self):
         return await self.guilds.get_all_configured()
+    
+    async def update_session_message_ids(self, guild_id: int, session_date: str, message_ids: str):
+        await self.sessions.update_message_ids(guild_id, session_date, message_ids)

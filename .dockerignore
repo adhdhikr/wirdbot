@@ -1,0 +1,9 @@
+# .dockerignore for both api and bot
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.env
+*.db
+*.sqlite3
+migrations/

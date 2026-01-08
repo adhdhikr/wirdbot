@@ -10,7 +10,7 @@ class DatabaseConnection:
     def __init__(self, db_path: str = "wird.db"):
         self.db_path = db_path
         self.db: Optional[aiosqlite.Connection] = None
-        self.migrations_dir = Path(__file__).parent / "migrations"
+        self.migrations_dir = Path(__file__).parent.parent / "migrations"
 
     async def connect(self):
         self.db = await aiosqlite.connect(self.db_path)
@@ -31,6 +31,7 @@ class DatabaseConnection:
             name = migration_file.stem
             
             if await self._is_migration_applied(version):
+                logger.debug(f"Migration {name} already applied, skipping")
                 continue
             
             logger.info(f"Applying migration: {name}")
@@ -39,7 +40,8 @@ class DatabaseConnection:
                 sql = f.read()
             
             try:
-                await self.db.executescript(sql)
+                cursor = await self.db.executescript(sql)
+                await cursor.close()
                 await self._mark_migration_applied(version, name)
                 logger.info(f"Migration {name} applied successfully")
             except Exception as e:

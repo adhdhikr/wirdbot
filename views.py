@@ -12,7 +12,7 @@ class CompletionButton(discord.ui.Button):
         self.page_number = page_number
 
     async def callback(self, interaction: discord.Interaction):
-        from .utils.completion import handle_completion
+        from utils.completion import handle_completion
         await handle_completion(interaction, self.page_number)
 
 
@@ -28,7 +28,7 @@ class RegistrationView(discord.ui.View):
 
     @discord.ui.button(label="Yes, Register Me!", style=discord.ButtonStyle.success)
     async def register_button(self, button: discord.ui.Button, interaction: discord.Interaction):
-        from .utils.user_management import register_user_with_role
+        from utils.user_management import register_user_with_role
         await register_user_with_role(interaction)
 
     @discord.ui.button(label="No, Thanks", style=discord.ButtonStyle.secondary)
@@ -75,15 +75,80 @@ class SetupModal(discord.ui.Modal):
 
 
 class ScheduleTimeModal(discord.ui.Modal):
-    def __init__(self):
-        super().__init__(title="Add Scheduled Time")
+    def __init__(self, guild_id: int):
+        super().__init__(title="Add Custom Time")
+        self.guild_id = guild_id
         
         self.add_item(discord.ui.InputText(
-            label="Time (HH:MM in UTC)",
-            placeholder="e.g., 14:30 for 2:30 PM UTC",
+            label="Time (in your timezone)",
+            placeholder="e.g., 8:00 AM, 14:30, or 2:30 PM",
             required=True
         ))
 
     async def callback(self, interaction: discord.Interaction):
-        from .utils.scheduler import handle_schedule_time
-        await handle_schedule_time(interaction, self.children[0].value)
+        from database import Database
+        import pytz
+        from datetime import datetime
+        
+        db = Database()
+        await db.connect()
+        
+        try:
+            # Get guild timezone
+            guild_config = await db.get_guild_config(self.guild_id)
+            timezone = guild_config.get('timezone', 'UTC') if guild_config else 'UTC'
+            
+            time_input = self.children[0].value.strip()
+            
+            # Parse time input (support multiple formats)
+            time_input_upper = time_input.upper().replace(' ', '')
+            
+            # Handle AM/PM format
+            if 'AM' in time_input_upper or 'PM' in time_input_upper:
+                is_pm = 'PM' in time_input_upper
+                time_part = time_input_upper.replace('AM', '').replace('PM', '')
+                
+                if ':' in time_part:
+                    hours, minutes = map(int, time_part.split(':'))
+                else:
+                    hours = int(time_part)
+                    minutes = 0
+                
+                if hours == 12:
+                    hours = 0 if not is_pm else 12
+                elif is_pm:
+                    hours += 12
+            else:
+                # 24-hour format
+                if ':' in time_input:
+                    hours, minutes = map(int, time_input.split(':'))
+                else:
+                    hours = int(time_input)
+                    minutes = 0
+            
+            if hours < 0 or hours > 23 or minutes < 0 or minutes > 59:
+                await interaction.response.send_message("Invalid time format!", ephemeral=True)
+                return
+            
+            # Convert to UTC
+            tz = pytz.timezone(timezone)
+            local_time = datetime.now(tz).replace(hour=hours, minute=minutes, second=0, microsecond=0)
+            utc_time = local_time.astimezone(pytz.UTC)
+            
+            time_value = f"{utc_time.hour:02d}:{utc_time.minute:02d}"
+            
+            await db.add_scheduled_time(self.guild_id, "custom", time_value)
+            
+            # Refresh the schedule view
+            from cogs.schedule_views import ScheduleMainView
+            view = ScheduleMainView(self.guild_id)
+            await view.setup_items()
+            embed = await view.create_embed()
+            await interaction.response.edit_message(embed=embed, view=view)
+        except ValueError:
+            await interaction.response.send_message("Invalid time format! Use HH:MM (e.g., 14:30) or 12-hour (e.g., 8:00 AM)", ephemeral=True)
+        except Exception as e:
+            await interaction.response.send_message(f"Error: {str(e)}", ephemeral=True)
+        finally:
+            await db.close()
+
