@@ -24,12 +24,6 @@ class DatabaseConnection:
         if self.db:
             await self.db.close()
 
-    async def _ensure_connected(self):
-        """Ensure the database connection is open, reconnecting if necessary."""
-        if self.db is None or self.db.closed:
-            logger.info("Database connection closed, reconnecting...")
-            await self._connect()
-
     async def _run_migrations(self):
         await self._ensure_migrations_table()
         migration_files = sorted(self.migrations_dir.glob("*.sql"))
@@ -81,18 +75,35 @@ class DatabaseConnection:
         await self.db.commit()
 
     async def execute_one(self, query: str, params: tuple = ()):
-        await self._ensure_connected()
-        async with self.db.execute(query, params) as cursor:
-            row = await cursor.fetchone()
-            return dict(row) if row else None
+        try:
+            async with self.db.execute(query, params) as cursor:
+                row = await cursor.fetchone()
+                return dict(row) if row else None
+        except Exception as e:
+            logger.warning(f"Database operation failed, attempting reconnection: {e}")
+            await self._connect()
+            async with self.db.execute(query, params) as cursor:
+                row = await cursor.fetchone()
+                return dict(row) if row else None
 
     async def execute_many(self, query: str, params: tuple = ()):
-        await self._ensure_connected()
-        async with self.db.execute(query, params) as cursor:
-            rows = await cursor.fetchall()
-            return [dict(row) for row in rows]
+        try:
+            async with self.db.execute(query, params) as cursor:
+                rows = await cursor.fetchall()
+                return [dict(row) for row in rows]
+        except Exception as e:
+            logger.warning(f"Database operation failed, attempting reconnection: {e}")
+            await self._connect()
+            async with self.db.execute(query, params) as cursor:
+                rows = await cursor.fetchall()
+                return [dict(row) for row in rows]
 
     async def execute_write(self, query: str, params: tuple = ()):
-        await self._ensure_connected()
-        await self.db.execute(query, params)
-        await self.db.commit()
+        try:
+            await self.db.execute(query, params)
+            await self.db.commit()
+        except Exception as e:
+            logger.warning(f"Database operation failed, attempting reconnection: {e}")
+            await self._connect()
+            await self.db.execute(query, params)
+            await self.db.commit()
