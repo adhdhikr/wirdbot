@@ -63,14 +63,6 @@ async def handle_completion(interaction: discord.Interaction, page_number: int):
                 f"{streak_line}",
                 ephemeral=True
             )
-        else:
-            # When notifications disabled, only show completion celebration
-            streak_line = f"🔥 Current streak: {current_streak} days" if current_streak > 1 else ""
-            await interaction.followup.send(
-                f"🎉 You've completed all pages for today!\n"
-                f"{streak_line}",
-                ephemeral=True
-            )
 
         if guild_config['followup_on_completion']:
             # Send a simple followup message: "x completed the wird (+ streak if there is)"

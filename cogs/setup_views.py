@@ -608,16 +608,6 @@ class FinalConfigView(View):
         mosque_button.callback = self.set_mosque
         self.add_item(mosque_button)
         
-        # Notification settings
-        notifications_button = Button(
-            label="Notification Settings",
-            style=discord.ButtonStyle.secondary,
-            emoji="🔔",
-            custom_id="notifications"
-        )
-        notifications_button.callback = self.set_notifications
-        self.add_item(notifications_button)
-        
         # Finish button
         finish_button = Button(
             label="Complete Setup",
@@ -648,22 +638,6 @@ class FinalConfigView(View):
         modal = MosqueIdModal(self.guild_id, self.setup_data)
         await interaction.response.send_modal(modal)
     
-    async def set_notifications(self, interaction: discord.Interaction):
-        """Toggle notification settings"""
-        view = NotificationSettingsView(self.guild_id, self.setup_data)
-        embed = discord.Embed(
-            title="🔔 Notification Settings",
-            description="Choose when users receive notifications for button presses:",
-            color=discord.Color.blue()
-        )
-        embed.add_field(
-            name="Show All Notifications",
-            value="When enabled: Users get messages for every button press (marking pages complete, progress updates).\n\n"
-                  "When disabled: Users only see completion celebrations when they finish all pages for the day, plus error messages and registration prompts.",
-            inline=False
-        )
-        await interaction.response.edit_message(embed=embed, view=view)
-    
     async def finish_setup(self, interaction: discord.Interaction):
         """Save configuration to database"""
         # ...existing code...
@@ -681,7 +655,6 @@ class FinalConfigView(View):
                 mushaf_type=self.setup_data['mushaf'],
                 pages_per_day=pages_per_day,
                 mosque_id=mosque_id,
-                show_all_notifications=self.setup_data.get('show_all_notifications', False),
                 configured=1
             )
             
@@ -704,7 +677,6 @@ class FinalConfigView(View):
             embed.add_field(name="📖 Mushaf", value=self.setup_data['mushaf'].title(), inline=True)
             embed.add_field(name="📄 Pages/Day", value=str(pages_per_day), inline=True)
             embed.add_field(name="🕌 Mosque ID", value=mosque_id, inline=True)
-            embed.add_field(name="🔔 Notifications", value="Enabled" if self.setup_data.get('show_all_notifications', False) else "Completion Only", inline=True)
             embed.add_field(
                 name="📌 Next Steps",
                 value="• Use `/schedule` to add more times\n• Use `/config` to view settings\n• Pages will be sent automatically!",
