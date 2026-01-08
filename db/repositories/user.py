@@ -42,3 +42,9 @@ class UserRepository:
                WHERE user_id = ? AND guild_id = ?""",
             (new_streak, longest, last_completion, user_id, guild_id)
         )
+
+    async def clear_all(self, guild_id: int):
+        await self.db.execute_write(
+            "DELETE FROM users WHERE guild_id = ?",
+            (guild_id,)
+        )

@@ -94,6 +94,15 @@ class Database:
     async def update_session_message_ids(self, guild_id: int, session_date: str, message_ids: str):
         await self.sessions.update_message_ids(guild_id, session_date, message_ids)
 
+    async def reset_guild_data(self, guild_id: int):
+        """Reset all data for a guild (admin command)"""
+        # Delete in reverse order of dependencies
+        await self.completions.clear_all(guild_id)
+        await self.sessions.clear_all(guild_id)
+        await self.users.clear_all(guild_id)
+        await self.schedules.clear_all(guild_id)
+        await self.guilds.delete(guild_id)
+
 
 # Global singleton instance
 db = Database()

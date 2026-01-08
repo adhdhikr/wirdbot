@@ -258,6 +258,26 @@ class AdminCog(commands.Cog):
     async def set_page(self, ctx: discord.ApplicationContext, page: int):
         await db.create_or_update_guild(ctx.guild_id, current_page=page)
         await ctx.respond(f"✅ Set current Quran page to {page}", ephemeral=True)
+
+    @discord.slash_command(name="reset_server", description="Reset all server data with confirmation (Admin only - DANGER!)")
+    @commands.has_permissions(administrator=True)
+    async def reset_server(self, ctx: discord.ApplicationContext):
+        embed = discord.Embed(
+            title="⚠️ DANGER: Reset Server Data",
+            description="This will **permanently delete** ALL Wird bot data for this server:\n\n"
+                        "• Guild configuration and settings\n"
+                        "• All user registrations and streaks\n"
+                        "• All completion records and progress\n"
+                        "• Scheduled times and automation\n"
+                        "• Daily session history\n\n"
+                        "**This action cannot be undone!**\n\n"
+                        "Are you absolutely sure you want to reset everything?",
+            color=discord.Color.red()
+        )
+        
+        from views import ResetConfirmationView
+        view = ResetConfirmationView(ctx.guild_id, self.bot)
+        await ctx.respond(embed=embed, view=view, ephemeral=True)
             
 
 def setup(bot):

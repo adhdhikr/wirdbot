@@ -32,3 +32,9 @@ class CompletionRepository:
                 completions[user_id] = []
             completions[user_id].append(row['page_number'])
         return completions
+
+    async def clear_all(self, guild_id: int):
+        await self.db.execute_write(
+            "DELETE FROM completions WHERE guild_id = ?",
+            (guild_id,)
+        )

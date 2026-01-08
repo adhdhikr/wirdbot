@@ -156,3 +156,49 @@ class ScheduleTimeModal(discord.ui.Modal):
             await interaction.response.send_message(f"Error: {str(e)}", ephemeral=True)
         # ...existing code...
 
+
+class ResetConfirmationView(discord.ui.View):
+    def __init__(self, guild_id: int, bot):
+        super().__init__(timeout=60)
+        self.guild_id = guild_id
+        self.bot = bot
+
+    @discord.ui.button(label="Yes, Reset Everything", style=discord.ButtonStyle.danger, emoji="⚠️")
+    async def confirm_reset(self, button: discord.ui.Button, interaction: discord.Interaction):
+        # Disable buttons to prevent double-clicks
+        for item in self.children:
+            item.disabled = True
+        await interaction.response.edit_message(view=self)
+        
+        try:
+            from database import db
+            await db.reset_guild_data(self.guild_id)
+            
+            embed = discord.Embed(
+                title="🗑️ Server Data Reset Complete",
+                description="All Wird bot data for this server has been permanently deleted:\n\n"
+                            "• Guild configuration\n"
+                            "• User registrations and streaks\n"
+                            "• Completion records\n"
+                            "• Scheduled times\n"
+                            "• Daily sessions\n\n"
+                            "The bot is now unconfigured. Use `/setup` to start fresh.",
+                color=discord.Color.red()
+            )
+            await interaction.edit_original_response(embed=embed, view=None)
+        except Exception as e:
+            await interaction.edit_original_response(
+                content=f"❌ Error during reset: {str(e)}",
+                embed=None,
+                view=None
+            )
+
+    @discord.ui.button(label="Cancel", style=discord.ButtonStyle.secondary)
+    async def cancel_reset(self, button: discord.ui.Button, interaction: discord.Interaction):
+        embed = discord.Embed(
+            title="✅ Reset Cancelled",
+            description="Server data has not been modified.",
+            color=discord.Color.green()
+        )
+        await interaction.response.edit_message(embed=embed, view=None)
+

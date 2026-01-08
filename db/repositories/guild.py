@@ -44,3 +44,9 @@ class GuildRepository:
         return await self.db.execute_many(
             "SELECT * FROM guilds WHERE configured = 1"
         )
+
+    async def delete(self, guild_id: int):
+        await self.db.execute_write(
+            "DELETE FROM guilds WHERE guild_id = ?",
+            (guild_id,)
+        )

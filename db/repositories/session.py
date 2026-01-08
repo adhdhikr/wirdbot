@@ -26,3 +26,9 @@ class SessionRepository:
                ORDER BY created_at DESC LIMIT 1""",
             (guild_id, session_date)
         )
+
+    async def clear_all(self, guild_id: int):
+        await self.db.execute_write(
+            "DELETE FROM daily_sessions WHERE guild_id = ?",
+            (guild_id,)
+        )
