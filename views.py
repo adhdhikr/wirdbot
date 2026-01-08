@@ -43,6 +43,7 @@ class TranslationButton(discord.ui.Button):
 
         from database import db
         from utils.translation import fetch_page_translations, format_translations
+        from utils.pagination import paginate_text
 
         # Get user's language preference
         language = await db.get_user_language_preference(interaction.user.id, interaction.guild_id)
@@ -54,15 +55,18 @@ class TranslationButton(discord.ui.Button):
             return
 
         formatted_text = await format_translations(translations)
+        pages = paginate_text(formatted_text)
 
-        # Create the translation view with language switch buttons
-        view = TranslationView(page_number, language)
+        # Create the translation view with language switch buttons and pagination
+        view = TranslationView(page_number, language, pages)
 
         embed = discord.Embed(
             title=f"📖 Page {page_number} Translation",
-            description=formatted_text[:4000],  # Discord embed description limit
+            description=pages[0],
             color=discord.Color.blue()
         )
+        if len(pages) > 1:
+            embed.set_footer(text=f"Page 1 of {len(pages)}")
 
         await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
 
@@ -86,6 +90,7 @@ class TafsirButton(discord.ui.Button):
 
         from database import db
         from utils.tafsir import fetch_page_tafsir, format_tafsir, TAFSIR_EDITIONS
+        from utils.pagination import paginate_text
 
         # Get user's tafsir preference
         tafsir_edition = await db.get_user_tafsir_preference(interaction.user.id, interaction.guild_id)
@@ -97,27 +102,37 @@ class TafsirButton(discord.ui.Button):
             return
 
         formatted_text = await format_tafsir(tafsir_data)
+        pages = paginate_text(formatted_text)
 
-        # Create the tafsir view with edition selector
-        view = TafsirView(page_number, tafsir_edition)
+        # Create the tafsir view with edition selector and pagination
+        view = TafsirView(page_number, tafsir_edition, pages)
 
         embed = discord.Embed(
             title=f"📚 Page {page_number} Tafsir",
-            description=formatted_text[:4000],  # Discord embed description limit
+            description=pages[0],
             color=discord.Color.green()
         )
+        if len(pages) > 1:
+            embed.set_footer(text=f"Page 1 of {len(pages)}")
 
         await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
 
 
 class TafsirView(discord.ui.View):
-    def __init__(self, page_number: int, current_edition: str):
+    def __init__(self, page_number: int, current_edition: str, pages: List[str], current_page: int = 0):
         super().__init__(timeout=300)  # 5 minutes timeout
         self.page_number = page_number
         self.current_edition = current_edition
+        self.pages = pages
+        self.current_page = current_page
 
         # Add tafsir edition select
         self.add_item(TafsirSelect(page_number, current_edition))
+
+        # Add pagination buttons if multiple pages
+        if len(pages) > 1:
+            self.add_item(TafsirPrevButton(page_number, current_edition, pages, current_page))
+            self.add_item(TafsirNextButton(page_number, current_edition, pages, current_page))
 
 
 class TafsirSelect(discord.ui.Select):
@@ -153,6 +168,7 @@ class TafsirSelect(discord.ui.Select):
 
         from database import db
         from utils.tafsir import fetch_page_tafsir, format_tafsir
+        from utils.pagination import paginate_text
 
         # Update user's tafsir preference
         await db.set_user_tafsir_preference(interaction.user.id, interaction.guild_id, selected_edition)
@@ -164,28 +180,98 @@ class TafsirSelect(discord.ui.Select):
             return
 
         formatted_text = await format_tafsir(tafsir_data)
+        pages = paginate_text(formatted_text)
 
         # Update the view with new edition selection
-        view = TafsirView(page_number, selected_edition)
+        view = TafsirView(page_number, selected_edition, pages, 0)
 
         embed = discord.Embed(
             title=f"📚 Page {page_number} Tafsir",
-            description=formatted_text[:4000],
+            description=pages[0],
             color=discord.Color.green()
         )
+        if len(pages) > 1:
+            embed.set_footer(text=f"Page 1 of {len(pages)}")
 
         await interaction.response.edit_message(embed=embed, view=view)
 
 
+class TafsirPrevButton(discord.ui.Button):
+    def __init__(self, page_number: int, current_edition: str, pages: List[str], current_page: int):
+        disabled = (current_page == 0)
+        super().__init__(
+            style=discord.ButtonStyle.secondary,
+            label="◀ Prev",
+            disabled=disabled,
+            custom_id=f"tafsir_prev_{page_number}_{current_edition}_{current_page}"
+        )
+        self.page_number = page_number
+        self.current_edition = current_edition
+        self.pages = pages
+        self.current_page = current_page
+
+    async def callback(self, interaction: discord.Interaction):
+        if self.current_page > 0:
+            new_page = self.current_page - 1
+            view = TafsirView(self.page_number, self.current_edition, self.pages, new_page)
+
+            embed = discord.Embed(
+                title=f"📚 Page {self.page_number} Tafsir",
+                description=self.pages[new_page],
+                color=discord.Color.green()
+            )
+            if len(self.pages) > 1:
+                embed.set_footer(text=f"Page {new_page + 1} of {len(self.pages)}")
+
+            await interaction.response.edit_message(embed=embed, view=view)
+
+
+class TafsirNextButton(discord.ui.Button):
+    def __init__(self, page_number: int, current_edition: str, pages: List[str], current_page: int):
+        disabled = (current_page == len(pages) - 1)
+        super().__init__(
+            style=discord.ButtonStyle.secondary,
+            label="Next ▶",
+            disabled=disabled,
+            custom_id=f"tafsir_next_{page_number}_{current_edition}_{current_page}"
+        )
+        self.page_number = page_number
+        self.current_edition = current_edition
+        self.pages = pages
+        self.current_page = current_page
+
+    async def callback(self, interaction: discord.Interaction):
+        if self.current_page < len(self.pages) - 1:
+            new_page = self.current_page + 1
+            view = TafsirView(self.page_number, self.current_edition, self.pages, new_page)
+
+            embed = discord.Embed(
+                title=f"📚 Page {self.page_number} Tafsir",
+                description=self.pages[new_page],
+                color=discord.Color.green()
+            )
+            if len(self.pages) > 1:
+                embed.set_footer(text=f"Page {new_page + 1} of {len(self.pages)}")
+
+            await interaction.response.edit_message(embed=embed, view=view)
+
+
 class TranslationView(discord.ui.View):
-    def __init__(self, page_number: int, current_language: str):
+    def __init__(self, page_number: int, current_language: str, pages: List[str], current_page: int = 0):
         super().__init__(timeout=300)  # 5 minutes timeout
         self.page_number = page_number
         self.current_language = current_language
+        self.pages = pages
+        self.current_page = current_page
 
         # Add language buttons
         self.add_item(LanguageButton(page_number, 'eng', 'English', current_language == 'eng'))
         self.add_item(LanguageButton(page_number, 'fra', 'Français', current_language == 'fra'))
+
+        # Add pagination buttons if multiple pages
+        if len(pages) > 1:
+            self.add_item(TranslationPrevButton(page_number, current_language, pages, current_page))
+            self.add_item(TranslationNextButton(page_number, current_language, pages, current_page))
 
 
 class LanguageButton(discord.ui.Button):
@@ -214,6 +300,7 @@ class LanguageButton(discord.ui.Button):
 
         from database import db
         from utils.translation import fetch_page_translations, format_translations
+        from utils.pagination import paginate_text
 
         # Update user's language preference
         await db.set_user_language_preference(interaction.user.id, interaction.guild_id, language)
@@ -225,18 +312,79 @@ class LanguageButton(discord.ui.Button):
             return
 
         formatted_text = await format_translations(translations)
+        pages = paginate_text(formatted_text)
 
         # Update the view with new language selection
-        view = TranslationView(page_number, language)
+        view = TranslationView(page_number, language, pages, 0)
 
         embed = discord.Embed(
             title=f"📖 Page {page_number} Translation",
-            description=formatted_text[:4000],
+            description=pages[0],
             color=discord.Color.blue()
         )
+        if len(pages) > 1:
+            embed.set_footer(text=f"Page 1 of {len(pages)}")
 
         await interaction.response.edit_message(embed=embed, view=view)
 
+class TranslationPrevButton(discord.ui.Button):
+    def __init__(self, page_number: int, current_language: str, pages: List[str], current_page: int):
+        disabled = (current_page == 0)
+        super().__init__(
+            style=discord.ButtonStyle.secondary,
+            label="◀ Prev",
+            disabled=disabled,
+            custom_id=f"trans_prev_{page_number}_{current_language}_{current_page}"
+        )
+        self.page_number = page_number
+        self.current_language = current_language
+        self.pages = pages
+        self.current_page = current_page
+
+    async def callback(self, interaction: discord.Interaction):
+        if self.current_page > 0:
+            new_page = self.current_page - 1
+            view = TranslationView(self.page_number, self.current_language, self.pages, new_page)
+
+            embed = discord.Embed(
+                title=f"📖 Page {self.page_number} Translation",
+                description=self.pages[new_page],
+                color=discord.Color.blue()
+            )
+            if len(self.pages) > 1:
+                embed.set_footer(text=f"Page {new_page + 1} of {len(self.pages)}")
+
+            await interaction.response.edit_message(embed=embed, view=view)
+
+
+class TranslationNextButton(discord.ui.Button):
+    def __init__(self, page_number: int, current_language: str, pages: List[str], current_page: int):
+        disabled = (current_page == len(pages) - 1)
+        super().__init__(
+            style=discord.ButtonStyle.secondary,
+            label="Next ▶",
+            disabled=disabled,
+            custom_id=f"trans_next_{page_number}_{current_language}_{current_page}"
+        )
+        self.page_number = page_number
+        self.current_language = current_language
+        self.pages = pages
+        self.current_page = current_page
+
+    async def callback(self, interaction: discord.Interaction):
+        if self.current_page < len(self.pages) - 1:
+            new_page = self.current_page + 1
+            view = TranslationView(self.page_number, self.current_language, self.pages, new_page)
+
+            embed = discord.Embed(
+                title=f"📖 Page {self.page_number} Translation",
+                description=self.pages[new_page],
+                color=discord.Color.blue()
+            )
+            if len(self.pages) > 1:
+                embed.set_footer(text=f"Page {new_page + 1} of {len(self.pages)}")
+
+            await interaction.response.edit_message(embed=embed, view=view)
 
 class PageView(discord.ui.View):
     def __init__(self, page_number: int):
@@ -417,4 +565,72 @@ class ResetConfirmationView(discord.ui.View):
             color=discord.Color.green()
         )
         await interaction.response.edit_message(embed=embed, view=None)
+
+
+class PaginatedView(discord.ui.View):
+    def __init__(self, pages: List[str], title: str, color: discord.Color, current_page: int = 0):
+        super().__init__(timeout=300)
+        self.pages = pages
+        self.title = title
+        self.color = color
+        self.current_page = current_page
+        self.update_buttons()
+
+    def update_buttons(self):
+        # Clear existing items
+        self.clear_items()
+
+        # Previous button
+        prev_button = discord.ui.Button(
+            style=discord.ButtonStyle.primary,
+            label="◀ Previous",
+            disabled=(self.current_page == 0)
+        )
+        prev_button.callback = self.previous_page
+        self.add_item(prev_button)
+
+        # Page indicator
+        page_indicator = discord.ui.Button(
+            style=discord.ButtonStyle.secondary,
+            label=f"Page {self.current_page + 1}/{len(self.pages)}",
+            disabled=True
+        )
+        self.add_item(page_indicator)
+
+        # Next button
+        next_button = discord.ui.Button(
+            style=discord.ButtonStyle.primary,
+            label="Next ▶",
+            disabled=(self.current_page == len(self.pages) - 1)
+        )
+        next_button.callback = self.next_page
+        self.add_item(next_button)
+
+    async def previous_page(self, interaction: discord.Interaction):
+        if self.current_page > 0:
+            self.current_page -= 1
+            self.update_buttons()
+
+            embed = discord.Embed(
+                title=self.title,
+                description=self.pages[self.current_page],
+                color=self.color
+            )
+            embed.set_footer(text=f"Page {self.current_page + 1} of {len(self.pages)}")
+
+            await interaction.response.edit_message(embed=embed, view=self)
+
+    async def next_page(self, interaction: discord.Interaction):
+        if self.current_page < len(self.pages) - 1:
+            self.current_page += 1
+            self.update_buttons()
+
+            embed = discord.Embed(
+                title=self.title,
+                description=self.pages[self.current_page],
+                color=self.color
+            )
+            embed.set_footer(text=f"Page {self.current_page + 1} of {len(self.pages)}")
+
+            await interaction.response.edit_message(embed=embed, view=self)
 

@@ -130,6 +130,7 @@ class AdminCog(commands.Cog):
         embed.add_field(name="🎭 Wird Role", value=f"<@&{guild_config['wird_role_id']}>" if guild_config['wird_role_id'] else "Not set", inline=True)
         embed.add_field(name="💬 Follow-up Channel", value=f"<#{guild_config['followup_channel_id']}>" if guild_config['followup_channel_id'] else "Same as main channel", inline=True)
         embed.add_field(name="✅ Follow-up on Completion", value="✅" if guild_config['followup_on_completion'] else "❌", inline=True)
+        embed.add_field(name="🔔 Show All Notifications", value="✅" if guild_config.get('show_all_notifications', False) else "❌", inline=True)
         embed.add_field(name="⏰ Scheduled Times", value=times_str, inline=False)
         tz = pytz.timezone(timezone)
         current_time = datetime.now(tz).strftime('%I:%M %p, %B %d, %Y')
@@ -234,6 +235,34 @@ class AdminCog(commands.Cog):
     async def set_role(self, ctx: discord.ApplicationContext, role: discord.Role):
         await db.create_or_update_guild(ctx.guild_id, wird_role_id=role.id)
         await ctx.respond(f"✅ Set Wird role to {role.mention}", ephemeral=True)
+
+    @discord.slash_command(name="toggle_notifications", description="Toggle notification settings (Admin only)")
+    @commands.has_permissions(administrator=True)
+    async def toggle_notifications(self, ctx: discord.ApplicationContext):
+        guild_config = await db.get_guild_config(ctx.guild_id)
+        if not guild_config or not guild_config['configured']:
+            await ctx.respond("Please run `/setup` first!", ephemeral=True)
+            return
+        
+        current_setting = guild_config.get('show_all_notifications', False)
+        new_setting = not current_setting
+        
+        await db.create_or_update_guild(ctx.guild_id, show_all_notifications=new_setting)
+        
+        status = "enabled" if new_setting else "disabled"
+        description = (
+            "Users will now receive notifications for **all button presses** (marking pages complete, progress updates, etc.)"
+            if new_setting else
+            "Users will now only receive notifications for **completion celebrations** when they finish all pages for the day, plus error messages and registration prompts."
+        )
+        
+        embed = discord.Embed(
+            title="🔔 Notification Settings Updated",
+            description=f"**Show all notifications:** {status}\n\n{description}",
+            color=discord.Color.green() if new_setting else discord.Color.blue()
+        )
+        
+        await ctx.respond(embed=embed, ephemeral=True)
 
     @discord.slash_command(name="send_now", description="Manually send today's pages (Admin only)")
     @commands.has_permissions(administrator=True)

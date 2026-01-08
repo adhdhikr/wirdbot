@@ -69,7 +69,7 @@ async def format_tafsir(tafsir_data: List[Dict[str, Any]]) -> str:
     for item in tafsir_data:
         surah = item.get('surah', '?')
         ayah = item.get('ayah', '?')
-        text = item.get('text', '')
+        text = item.get('text', '').replace('`', '\\`')  # Escape backticks
         formatted.append(f"**{surah}:{ayah}**\n{text}")
 
     return "\n\n".join(formatted)

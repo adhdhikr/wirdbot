@@ -38,7 +38,7 @@ async def format_translations(translations: List[Dict[str, Any]]) -> str:
     for verse in translations:
         chapter = verse.get('chapter', '?')
         verse_num = verse.get('verse', '?')
-        text = verse.get('text', '')
+        text = verse.get('text', '').replace('`', '\\`')  # Escape backticks
         formatted.append(f"**{chapter}:{verse_num}** {text}")
 
     return "\n\n".join(formatted)
