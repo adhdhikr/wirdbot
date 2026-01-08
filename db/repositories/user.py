@@ -58,3 +58,13 @@ class UserRepository:
             "UPDATE users SET language_preference = ? WHERE user_id = ? AND guild_id = ?",
             (language, user_id, guild_id)
         )
+
+    async def get_tafsir_preference(self, user_id: int, guild_id: int) -> str:
+        user = await self.get(user_id, guild_id)
+        return user.get('tafsir_preference', 'ar-tafsir-ibn-kathir') if user else 'ar-tafsir-ibn-kathir'
+
+    async def set_tafsir_preference(self, user_id: int, guild_id: int, tafsir: str):
+        await self.db.execute_write(
+            "UPDATE users SET tafsir_preference = ? WHERE user_id = ? AND guild_id = ?",
+            (tafsir, user_id, guild_id)
+        )

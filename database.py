@@ -109,6 +109,12 @@ class Database:
     async def set_user_language_preference(self, user_id: int, guild_id: int, language: str):
         await self.users.set_language_preference(user_id, guild_id, language)
 
+    async def get_user_tafsir_preference(self, user_id: int, guild_id: int) -> str:
+        return await self.users.get_tafsir_preference(user_id, guild_id)
+
+    async def set_user_tafsir_preference(self, user_id: int, guild_id: int, tafsir: str):
+        await self.users.set_tafsir_preference(user_id, guild_id, tafsir)
+
 
 # Global singleton instance
 db = Database()

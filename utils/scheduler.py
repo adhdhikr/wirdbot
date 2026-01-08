@@ -24,9 +24,7 @@ async def get_prayer_times(mosque_id: str) -> Optional[dict]:
 
 
 async def handle_schedule_time(interaction, time_value: str):
-    from database import db
-    # ...existing code...
-    
+    from database import db    
     try:
         hours, minutes = map(int, time_value.split(":"))
         
@@ -38,5 +36,3 @@ async def handle_schedule_time(interaction, time_value: str):
         await interaction.response.send_message(f"✅ Added scheduled time: {time_value} UTC", ephemeral=True)
     except ValueError:
         await interaction.response.send_message("Invalid time format! Use HH:MM (e.g., 14:30)", ephemeral=True)
-    finally:
-        # ...existing code...

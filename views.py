@@ -67,6 +67,116 @@ class TranslationButton(discord.ui.Button):
         await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
 
 
+class TafsirButton(discord.ui.Button):
+    def __init__(self, page_number: int):
+        super().__init__(
+            style=discord.ButtonStyle.secondary,
+            label="📚 Tafsir",
+            custom_id=f"tafsir_{page_number}"
+        )
+
+    async def callback(self, interaction: discord.Interaction):
+        # Parse page number from custom_id
+        custom_id = interaction.data.get('custom_id', '')
+        try:
+            page_number = int(custom_id.split('_')[1])
+        except (ValueError, IndexError):
+            await interaction.response.send_message("Invalid button interaction!", ephemeral=True)
+            return
+
+        from database import db
+        from utils.tafsir import fetch_page_tafsir, format_tafsir, TAFSIR_EDITIONS
+
+        # Get user's tafsir preference
+        tafsir_edition = await db.get_user_tafsir_preference(interaction.user.id, interaction.guild_id)
+
+        # Fetch tafsir
+        tafsir_data = await fetch_page_tafsir(page_number, tafsir_edition)
+        if tafsir_data is None:
+            await interaction.response.send_message("❌ Failed to fetch tafsir. Please try again later.", ephemeral=True)
+            return
+
+        formatted_text = await format_tafsir(tafsir_data)
+
+        # Create the tafsir view with edition selector
+        view = TafsirView(page_number, tafsir_edition)
+
+        embed = discord.Embed(
+            title=f"📚 Page {page_number} Tafsir",
+            description=formatted_text[:4000],  # Discord embed description limit
+            color=discord.Color.green()
+        )
+
+        await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
+
+
+class TafsirView(discord.ui.View):
+    def __init__(self, page_number: int, current_edition: str):
+        super().__init__(timeout=300)  # 5 minutes timeout
+        self.page_number = page_number
+        self.current_edition = current_edition
+
+        # Add tafsir edition select
+        self.add_item(TafsirSelect(page_number, current_edition))
+
+
+class TafsirSelect(discord.ui.Select):
+    def __init__(self, page_number: int, current_edition: str):
+        from utils.tafsir import TAFSIR_EDITIONS
+
+        options = []
+        for edition_key, display_name in TAFSIR_EDITIONS.items():
+            options.append(discord.SelectOption(
+                label=display_name,
+                value=edition_key,
+                default=(edition_key == current_edition)
+            ))
+
+        super().__init__(
+            placeholder="Choose Tafsir Edition...",
+            min_values=1,
+            max_values=1,
+            options=options,
+            custom_id=f"tafsir_select_{page_number}"
+        )
+
+    async def callback(self, interaction: discord.Interaction):
+        # Parse page number from custom_id
+        custom_id = interaction.data.get('custom_id', '')
+        try:
+            page_number = int(custom_id.split('_')[2])
+        except (ValueError, IndexError):
+            await interaction.response.send_message("Invalid select interaction!", ephemeral=True)
+            return
+
+        selected_edition = self.values[0]
+
+        from database import db
+        from utils.tafsir import fetch_page_tafsir, format_tafsir
+
+        # Update user's tafsir preference
+        await db.set_user_tafsir_preference(interaction.user.id, interaction.guild_id, selected_edition)
+
+        # Fetch tafsir in new edition
+        tafsir_data = await fetch_page_tafsir(page_number, selected_edition)
+        if tafsir_data is None:
+            await interaction.response.send_message("❌ Failed to fetch tafsir. Please try again later.", ephemeral=True)
+            return
+
+        formatted_text = await format_tafsir(tafsir_data)
+
+        # Update the view with new edition selection
+        view = TafsirView(page_number, selected_edition)
+
+        embed = discord.Embed(
+            title=f"📚 Page {page_number} Tafsir",
+            description=formatted_text[:4000],
+            color=discord.Color.green()
+        )
+
+        await interaction.response.edit_message(embed=embed, view=view)
+
+
 class TranslationView(discord.ui.View):
     def __init__(self, page_number: int, current_language: str):
         super().__init__(timeout=300)  # 5 minutes timeout
@@ -133,6 +243,7 @@ class PageView(discord.ui.View):
         super().__init__(timeout=None)  # Views persist until bot restart
         self.add_item(CompletionButton(page_number))
         self.add_item(TranslationButton(page_number))
+        self.add_item(TafsirButton(page_number))
 
 
 class RegistrationView(discord.ui.View):
