@@ -1,0 +1,85 @@
+import aiosqlite
+from pathlib import Path
+from typing import Optional
+import logging
+
+logger = logging.getLogger(__name__)
+
+
+class DatabaseConnection:
+    def __init__(self, db_path: str = "wird.db"):
+        self.db_path = db_path
+        self.db: Optional[aiosqlite.Connection] = None
+        self.migrations_dir = Path(__file__).parent / "migrations"
+
+    async def connect(self):
+        self.db = await aiosqlite.connect(self.db_path)
+        self.db.row_factory = aiosqlite.Row
+        await self._run_migrations()
+
+    async def close(self):
+        if self.db:
+            await self.db.close()
+
+    async def _run_migrations(self):
+        await self._ensure_migrations_table()
+        
+        migration_files = sorted(self.migrations_dir.glob("*.sql"))
+        
+        for migration_file in migration_files:
+            version = int(migration_file.stem.split("_")[0])
+            name = migration_file.stem
+            
+            if await self._is_migration_applied(version):
+                continue
+            
+            logger.info(f"Applying migration: {name}")
+            
+            with open(migration_file, 'r') as f:
+                sql = f.read()
+            
+            try:
+                await self.db.executescript(sql)
+                await self._mark_migration_applied(version, name)
+                logger.info(f"Migration {name} applied successfully")
+            except Exception as e:
+                logger.error(f"Failed to apply migration {name}: {e}")
+                raise
+
+    async def _ensure_migrations_table(self):
+        await self.db.execute("""
+            CREATE TABLE IF NOT EXISTS migrations (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                version INTEGER UNIQUE NOT NULL,
+                name TEXT NOT NULL,
+                applied_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        await self.db.commit()
+
+    async def _is_migration_applied(self, version: int) -> bool:
+        async with self.db.execute(
+            "SELECT 1 FROM migrations WHERE version = ?", (version,)
+        ) as cursor:
+            return await cursor.fetchone() is not None
+
+    async def _mark_migration_applied(self, version: int, name: str):
+        await self.db.execute(
+            "INSERT INTO migrations (version, name) VALUES (?, ?)",
+            (version, name)
+        )
+        await self.db.commit()
+
+    async def execute_one(self, query: str, params: tuple = ()):
+        async with self.db.execute(query, params) as cursor:
+            row = await cursor.fetchone()
+            return dict(row) if row else None
+
+    async def execute_many(self, query: str, params: tuple = ()):
+        async with self.db.execute(query, params) as cursor:
+            rows = await cursor.fetchall()
+            return [dict(row) for row in rows]
+
+    async def execute_write(self, query: str, params: tuple = ()):
+        await self.db.execute(query, params)
+        await self.db.commit()
