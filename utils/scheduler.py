@@ -24,9 +24,7 @@ async def get_prayer_times(mosque_id: str) -> Optional[dict]:
 
 
 async def handle_schedule_time(interaction, time_value: str):
-    from database import Database
-    
-    db = Database()
+    from database import db
     # ...existing code...
     
     try:

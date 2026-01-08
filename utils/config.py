@@ -1,10 +1,9 @@
 import discord
-from database import Database
+from database import db
 from config import MIN_PAGES_PER_DAY, MAX_PAGES_PER_DAY
 
 
 async def handle_setup(interaction: discord.Interaction, children):
-    db = Database()
     # ...existing code...
     
     try:

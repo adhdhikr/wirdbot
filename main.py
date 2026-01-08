@@ -4,7 +4,7 @@ import logging
 from pathlib import Path
 
 from config import DISCORD_TOKEN, DEBUG_MODE, DEBUG_GUILD_ID
-from database import Database
+from database import db
 
 logging.basicConfig(
     level=logging.INFO,
@@ -18,7 +18,6 @@ intents.members = True
 
 debug_guilds = [DEBUG_GUILD_ID] if DEBUG_MODE and DEBUG_GUILD_ID else None
 bot = commands.Bot(intents=intents, debug_guilds=debug_guilds)
-db = Database()
 
 if DEBUG_MODE:
     logger.info(f"🐛 DEBUG MODE ENABLED - Commands will register instantly to guild {DEBUG_GUILD_ID}")

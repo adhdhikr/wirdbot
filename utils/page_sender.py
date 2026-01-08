@@ -1,5 +1,5 @@
 import discord
-from database import Database
+from database import db
 from datetime import datetime
 from views import PageView
 from config import API_BASE_URL, MAX_PAGES
@@ -12,7 +12,6 @@ logger = logging.getLogger(__name__)
 
 
 async def send_daily_pages(guild_id: int, bot) -> bool:
-    db = Database()
     guild_config = await db.get_guild_config(guild_id)
     if not guild_config or not guild_config['configured']:
         return False

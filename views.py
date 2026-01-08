@@ -86,11 +86,9 @@ class ScheduleTimeModal(discord.ui.Modal):
         ))
 
     async def callback(self, interaction: discord.Interaction):
-        from database import Database
+        from database import db
         import pytz
         from datetime import datetime
-        
-        db = Database()
         
         try:
             # Get guild timezone

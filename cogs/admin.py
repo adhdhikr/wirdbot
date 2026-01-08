@@ -2,7 +2,7 @@ import discord
 from discord.ext import commands
 from discord import option
 from views import ScheduleTimeModal
-from database import Database
+from database import db
 from utils.user_management import assign_role, remove_role
 import aiohttp
 from config import API_BASE_URL
@@ -91,7 +91,6 @@ class AdminCog(commands.Cog):
                 color=discord.Color.blurple()
             )
             await ctx.respond(embed=embed, view=view, ephemeral=True)
-        db = Database()
         guild_config = await db.get_guild_config(ctx.guild_id)
         if not guild_config or not guild_config['configured']:
             await ctx.respond("Server not configured! Use `/setup` to configure.", ephemeral=True)
@@ -145,7 +144,6 @@ class AdminCog(commands.Cog):
     @commands.has_permissions(administrator=True)
     async def schedule(self, ctx: discord.ApplicationContext):
         from cogs.schedule_views import ScheduleMainView
-        db = Database()
         guild_config = await db.get_guild_config(ctx.guild_id)
         if not guild_config or not guild_config['configured']:
             await ctx.respond("Please run `/setup` first!", ephemeral=True)
@@ -159,7 +157,6 @@ class AdminCog(commands.Cog):
     @commands.has_permissions(administrator=True)
     @option("mushaf", description="Mushaf type", autocomplete=get_mushaf_types)
     async def set_mushaf(self, ctx: discord.ApplicationContext, mushaf: str):
-        db = Database()
         await db.create_or_update_guild(ctx.guild_id, mushaf_type=mushaf)
         await ctx.respond(f"✅ Updated mushaf to {mushaf}", ephemeral=True)
 
@@ -167,7 +164,6 @@ class AdminCog(commands.Cog):
     @commands.has_permissions(administrator=True)
     @option("pages_per_day", description="Pages to send per day", min_value=1, max_value=20)
     async def set_pages(self, ctx: discord.ApplicationContext, pages_per_day: int):
-        db = Database()
         await db.create_or_update_guild(ctx.guild_id, pages_per_day=pages_per_day)
         await ctx.respond(f"✅ Updated pages per day to {pages_per_day}", ephemeral=True)
 
@@ -175,7 +171,6 @@ class AdminCog(commands.Cog):
     @commands.has_permissions(administrator=True)
     @option("channel", description="Channel where pages will be sent", type=discord.TextChannel)
     async def set_channel(self, ctx: discord.ApplicationContext, channel: discord.TextChannel):
-        db = Database()
         await db.create_or_update_guild(ctx.guild_id, channel_id=channel.id)
         await ctx.respond(f"✅ Updated channel to {channel.mention}", ephemeral=True)
 
@@ -183,7 +178,6 @@ class AdminCog(commands.Cog):
     @commands.has_permissions(administrator=True)
     @option("mosque_id", description="Mosque ID")
     async def set_mosque(self, ctx: discord.ApplicationContext, mosque_id: str):
-        db = Database()
         await db.create_or_update_guild(ctx.guild_id, mosque_id=mosque_id)
         await ctx.respond(f"✅ Updated mosque ID to {mosque_id}", ephemeral=True)
 
@@ -191,14 +185,12 @@ class AdminCog(commands.Cog):
     @commands.has_permissions(administrator=True)
     @option("channel", description="Channel for follow-up reports", type=discord.TextChannel)
     async def set_followup_channel(self, ctx: discord.ApplicationContext, channel: discord.TextChannel):
-        db = Database()
         await db.create_or_update_guild(ctx.guild_id, followup_channel_id=channel.id)
         await ctx.respond(f"✅ Updated follow-up channel to {channel.mention}", ephemeral=True)
 
     @discord.slash_command(name="toggle_followup_on_completion", description="Toggle instant follow-up on completion (Admin only)")
     @commands.has_permissions(administrator=True)
     async def toggle_followup_on_completion(self, ctx: discord.ApplicationContext):
-        db = Database()
         guild_config = await db.get_guild_config(ctx.guild_id)
         if not guild_config:
             await ctx.respond("Please run `/setup` first!", ephemeral=True)
@@ -213,7 +205,6 @@ class AdminCog(commands.Cog):
     @option("setting", choices=["mushaf", "pages_per_day", "channel", "mosque_id", "followup_channel", "followup_on_completion"])
     @option("value", description="New value for the setting")
     async def update(self, ctx: discord.ApplicationContext, setting: str, value: str):
-        db = Database()
         try:
             guild_config = await db.get_guild_config(ctx.guild_id)
             if not guild_config:
@@ -241,7 +232,6 @@ class AdminCog(commands.Cog):
     @discord.slash_command(name="set_role", description="Set the Wird role (Admin only)")
     @commands.has_permissions(administrator=True)
     async def set_role(self, ctx: discord.ApplicationContext, role: discord.Role):
-        db = Database()
         await db.create_or_update_guild(ctx.guild_id, wird_role_id=role.id)
         await ctx.respond(f"✅ Set Wird role to {role.mention}", ephemeral=True)
 
@@ -249,7 +239,6 @@ class AdminCog(commands.Cog):
     @commands.has_permissions(administrator=True)
     async def send_now(self, ctx: discord.ApplicationContext):
         await ctx.defer(ephemeral=True)
-        db = Database()
         guild_config = await db.get_guild_config(ctx.guild_id)
         if not guild_config or not guild_config['configured']:
             await ctx.respond("Please run `/setup` first!", ephemeral=True)
@@ -267,7 +256,6 @@ class AdminCog(commands.Cog):
     @commands.has_permissions(administrator=True)
     @option("page", description="Current Quran page", min_value=1, max_value=604)
     async def set_page(self, ctx: discord.ApplicationContext, page: int):
-        db = Database()
         await db.create_or_update_guild(ctx.guild_id, current_page=page)
         await ctx.respond(f"✅ Set current Quran page to {page}", ephemeral=True)
             

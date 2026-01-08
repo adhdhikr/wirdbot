@@ -4,7 +4,7 @@ def setup(bot):
     pass
 import discord
 from discord.ui import View, Button, Select, Modal, InputText
-from database import Database
+from database import db
 from typing import Optional
 import pytz
 from datetime import datetime
@@ -640,7 +640,6 @@ class FinalConfigView(View):
     
     async def finish_setup(self, interaction: discord.Interaction):
         """Save configuration to database"""
-        db = Database()
         # ...existing code...
         
         try:

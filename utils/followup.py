@@ -1,12 +1,11 @@
 import discord
-from database import Database
+from database import db
 import logging
 
 logger = logging.getLogger(__name__)
 
 
 async def send_followup_message(guild_id: int, bot):
-    db = Database()
     # ...existing code...
     
     try:

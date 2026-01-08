@@ -93,3 +93,7 @@ class Database:
     
     async def update_session_message_ids(self, guild_id: int, session_date: str, message_ids: str):
         await self.sessions.update_message_ids(guild_id, session_date, message_ids)
+
+
+# Global singleton instance
+db = Database()

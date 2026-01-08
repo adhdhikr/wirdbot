@@ -1,6 +1,6 @@
 import discord
 from discord.ext import commands, tasks
-from database import Database
+from database import db
 from datetime import datetime
 from utils.scheduler import get_prayer_times
 from utils.page_sender import send_daily_pages
@@ -21,9 +21,6 @@ class SchedulerCog(commands.Cog):
     async def scheduler_loop(self):
         now = datetime.utcnow()
         current_time = now.strftime("%H:%M")
-        
-        db = Database()
-        await db.connect()
         
         try:
             guilds = await db.get_all_configured_guilds()
@@ -59,8 +56,6 @@ class SchedulerCog(commands.Cog):
                             break
         except Exception as e:
             logger.error(f"Error in scheduler loop: {e}")
-        finally:
-            await db.close()
 
     @scheduler_loop.before_loop
     async def before_scheduler(self):
