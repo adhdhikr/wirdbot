@@ -240,6 +240,19 @@ class ChannelSelectView(View):
         # Get text channels from the guild
         text_channels = [ch for ch in guild.channels if isinstance(ch, discord.TextChannel)]
         
+        # Priority keywords for channel names (case-insensitive)
+        priority_keywords = ['coran', 'quran', 'wird', 'islam', 'muslim', 'allah', 'prayer', 'salah', 'dua', 'hadith', 'sunnah', 'faith', 'iman']
+        
+        # Sort channels to prioritize those with relevant names
+        def channel_priority(channel):
+            name_lower = channel.name.lower()
+            for keyword in priority_keywords:
+                if keyword in name_lower:
+                    return 0  # High priority
+            return 1  # Normal priority
+        
+        text_channels.sort(key=channel_priority)
+        
         # Create options from channels (limit to 25 for Discord's limit)
         options = []
         for channel in text_channels[:25]:
