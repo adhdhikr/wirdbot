@@ -46,13 +46,13 @@ async def send_followup_message(guild_id: int, bot):
                 continue
             count = len(user_completions)
             if count == 0:
-                not_started.append(f"❌ {member.mention}")
+                not_started.append(f"{member.mention}")
             elif count >= total_pages:
                 # Only show streak if > 1
                 streak = f" - {user['current_streak']}🔥" if user['current_streak'] > 1 else ""
-                completed.append(f"✅ {member.mention}{streak}")
+                completed.append(f"{member.mention}{streak}")
             else:
-                in_progress.append(f"⏳ {member.mention} - {count}/{total_pages} pages")
+                in_progress.append(f"{member.mention} - {count}/{total_pages} pages")
 
         embed = discord.Embed(
             title="📊 Daily Wird Progress",
