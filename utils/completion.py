@@ -67,6 +67,8 @@ async def handle_completion(interaction: discord.Interaction, page_number: int):
                 f"{streak_line}",
                 ephemeral=True
             )
+        else:
+            await interaction.response.defer(ephemeral=True)
 
         if guild_config['followup_on_completion']:
             # Send a simple followup message: "x completed the wird (+ streak if there is)"
@@ -84,6 +86,8 @@ async def handle_completion(interaction: discord.Interaction, page_number: int):
                 f"📖 Progress: {len(completions)}/{total_pages} pages",
                 ephemeral=True
             )
+        else:
+            await interaction.response.defer(ephemeral=True)
     # Always update the summary embed (progress message) when a user completes all their pages for the day
     await send_followup_message(interaction.guild_id, interaction.client)
 
