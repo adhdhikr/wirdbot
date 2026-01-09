@@ -8,16 +8,16 @@ logger = logging.getLogger(__name__)
 
 
 async def handle_completion(interaction: discord.Interaction, page_number: int):
-    await interaction.response.defer(ephemeral=True)
-    
     guild_config = await db.get_guild_config(interaction.guild_id)
     if not guild_config:
+        await interaction.response.defer(ephemeral=True)
         await interaction.followup.send("Server not configured!", ephemeral=True)
         return
     
     user = await db.get_user(interaction.user.id, interaction.guild_id)
     
     if not user or not user['registered']:
+        await interaction.response.defer(ephemeral=True)
         from views import RegistrationView
         view = RegistrationView()
         await interaction.followup.send(
@@ -32,6 +32,7 @@ async def handle_completion(interaction: discord.Interaction, page_number: int):
     
     if page_number in completions:
         if guild_config.get('show_all_notifications', False):
+            await interaction.response.defer(ephemeral=True)
             await interaction.followup.send("✅ You already marked this page as read!", ephemeral=True)
         return
     
@@ -56,6 +57,7 @@ async def handle_completion(interaction: discord.Interaction, page_number: int):
         await db.update_streak(interaction.user.id, interaction.guild_id, current_streak, today)
 
         if guild_config.get('show_all_notifications', False):
+            await interaction.response.defer(ephemeral=True)
             streak_line = f"🔥 Current streak: {current_streak} days" if current_streak > 1 else ""
             await interaction.followup.send(
                 f"✅ Page {page_number} marked as complete!\n"
@@ -74,6 +76,7 @@ async def handle_completion(interaction: discord.Interaction, page_number: int):
     else:
         # Don't update streak if not all pages are done
         if guild_config.get('show_all_notifications', False):
+            await interaction.response.defer(ephemeral=True)
             await interaction.followup.send(
                 f"✅ Page {page_number} marked as complete!\n"
                 f"📖 Progress: {len(completions)}/{total_pages} pages",
