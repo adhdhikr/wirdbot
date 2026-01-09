@@ -34,6 +34,8 @@ async def handle_completion(interaction: discord.Interaction, page_number: int):
         if guild_config.get('show_all_notifications', False):
             await interaction.response.defer(ephemeral=True)
             await interaction.followup.send("✅ You already marked this page as read!", ephemeral=True)
+        else:
+            await interaction.response.defer(ephemeral=True)
         return
     
     await db.mark_page_complete(interaction.user.id, interaction.guild_id, page_number, today)
