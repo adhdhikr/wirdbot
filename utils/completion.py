@@ -28,6 +28,14 @@ async def handle_completion(interaction: discord.Interaction, page_number: int):
         return
     
     today = datetime.utcnow().strftime("%Y-%m-%d")
+    session = await db.get_today_session(interaction.guild_id, today)
+    
+    # Check if the page is part of today's session
+    if session and not (session['start_page'] <= page_number <= session['end_page']):
+        await interaction.response.defer(ephemeral=True)
+        await interaction.followup.send("This page is not part of today's reading assignment.", ephemeral=True)
+        return
+    
     completions = await db.get_user_completions_for_date(interaction.user.id, interaction.guild_id, today)
     
     if page_number in completions:
@@ -41,7 +49,6 @@ async def handle_completion(interaction: discord.Interaction, page_number: int):
     await db.mark_page_complete(interaction.user.id, interaction.guild_id, page_number, today)
     completions.append(page_number)
 
-    session = await db.get_today_session(interaction.guild_id, today)
     total_pages = session['end_page'] - session['start_page'] + 1 if session else 1
 
     # Edit the original message to show it's been marked as read
