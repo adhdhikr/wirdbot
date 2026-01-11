@@ -32,8 +32,7 @@ async def handle_completion(interaction: discord.Interaction, page_number: int):
     
     # Check if the page is part of today's session
     if session and not (session['start_page'] <= page_number <= session['end_page']):
-        await interaction.response.defer(ephemeral=True)
-        await interaction.followup.send("This page is not part of today's reading assignment.", ephemeral=True)
+        await interaction.response.defer()
         return
     
     completions = await db.get_user_completions_for_date(interaction.user.id, interaction.guild_id, today)
