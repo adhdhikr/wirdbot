@@ -84,42 +84,49 @@ async def send_followup_message(guild_id: int, bot, session_id: int = None):
             color=discord.Color.blue()
         )
 
-        if completed:
+        # Prioritize: completed first, then in_progress, then late_completions, then not_started, up to 30 total lines
+        total_limit = 30
+        shown_completed = completed[:total_limit]
+        remaining = total_limit - len(shown_completed)
+        shown_in_progress = in_progress[:remaining]
+        remaining -= len(shown_in_progress)
+        shown_late_completions = late_completions_list[:remaining]
+        remaining -= len(shown_late_completions)
+        shown_not_started = not_started[:remaining]
+
+        total_hidden = (len(completed) - len(shown_completed)) + (len(in_progress) - len(shown_in_progress)) + (len(late_completions_list) - len(shown_late_completions)) + (len(not_started) - len(shown_not_started))
+
+        if shown_completed:
             embed.add_field(
                 name=f"✅ Completed ({len(completed)})", 
-                value="\n".join(completed[:10]), 
+                value="\n".join(shown_completed), 
                 inline=False
             )
-            if len(completed) > 10:
-                embed.add_field(name="", value=f"... and {len(completed) - 10} more", inline=False)
 
-        if in_progress:
+        if shown_in_progress:
             embed.add_field(
                 name=f"⏳ In Progress ({len(in_progress)})", 
-                value="\n".join(in_progress[:10]), 
+                value="\n".join(shown_in_progress), 
                 inline=False
             )
-            if len(in_progress) > 10:
-                embed.add_field(name="", value=f"... and {len(in_progress) - 10} more", inline=False)
 
         # Add late completions section BEFORE not started
-        if late_completions_list:
+        if shown_late_completions:
             embed.add_field(
                 name=f"⏰ Completed Late ({len(late_completions_list)})",
-                value="\n".join(late_completions_list[:10]),
+                value="\n".join(shown_late_completions),
                 inline=False
             )
-            if len(late_completions_list) > 10:
-                embed.add_field(name="", value=f"... and {len(late_completions_list) - 10} more", inline=False)
 
-        if not_started:
+        if shown_not_started:
             embed.add_field(
                 name=f"❌ Not Started ({len(not_started)})", 
-                value="\n".join(not_started[:10]), 
+                value="\n".join(shown_not_started), 
                 inline=False
             )
-            if len(not_started) > 10:
-                embed.add_field(name="", value=f"... and {len(not_started) - 10} more", inline=False)
+
+        if total_hidden > 0:
+            embed.add_field(name="", value=f"... and {total_hidden} more", inline=False)
 
         if not completed and not in_progress and not not_started:
             embed.description += "\n\nNo registered users yet!"

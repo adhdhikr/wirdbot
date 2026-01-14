@@ -76,14 +76,6 @@ async def handle_completion(interaction: discord.Interaction, page_number: int):
     )
     completions.append(page_number)
 
-    # Edit the original message to show it's been marked as read
-    try:
-        original_content = interaction.message.content
-        if "✅" not in original_content:
-            await interaction.message.edit(content=f"✅ {original_content}")
-    except:
-        pass  # If we can't edit, that's okay
-
 
     total_pages = target_session['end_page'] - target_session['start_page'] + 1
 
