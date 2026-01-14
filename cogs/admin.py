@@ -352,6 +352,26 @@ class AdminCog(commands.Cog):
         view = ResetConfirmationView(ctx.guild_id, self.bot)
         await ctx.respond(embed=embed, view=view, ephemeral=True)
 
+    @admin.command(name="set_streak_emoji", description="Set a custom streak emoji for a user (leave empty to reset)")
+    @admin_or_specific_user()
+    @option("user", description="The user to set the emoji for", type=discord.Member)
+    @option("emoji", description="The emoji to set", required=False)
+    async def set_streak_emoji(self, ctx: discord.ApplicationContext, user: discord.Member, emoji: str = None):
+        # Ensure user is registered first
+        user_data = await db.get_user(user.id, ctx.guild_id)
+        if not user_data:
+            await ctx.respond(f"❌ {user.mention} is not registered! They need to use `/register` first.", ephemeral=True)
+            return
+
+        # Default to None (NULL in DB) if empty, which falls back to fire in code
+        await db.set_user_streak_emoji(user.id, ctx.guild_id, emoji)
+        
+        display_emoji = emoji or "🔥 (Default)"
+        await ctx.respond(
+            f"✅ Set {user.mention}'s streaks emoji to {display_emoji}",
+            ephemeral=True
+        )
+
             
 
 def setup(bot):

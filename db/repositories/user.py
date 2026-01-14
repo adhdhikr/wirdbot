@@ -114,3 +114,9 @@ class UserRepository:
             "UPDATE users SET tafsir_preference = ? WHERE user_id = ? AND guild_id = ?",
             (tafsir, user_id, guild_id)
         )
+
+    async def set_streak_emoji(self, user_id: int, guild_id: int, emoji: str):
+        await self.db.execute_write(
+            "UPDATE users SET streak_emoji = ? WHERE user_id = ? AND guild_id = ?",
+            (emoji, user_id, guild_id)
+        )

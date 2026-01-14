@@ -92,7 +92,8 @@ async def handle_completion(interaction: discord.Interaction, page_number: int):
 
         if guild_config.get('show_all_notifications', False):
             late_text = " (Completed Late)" if is_late else ""
-            streak_line = f"🔥 Current streak: {current_streak} sessions" if current_streak > 1 and not is_late else ""
+            streak_emoji = user.get('streak_emoji') or "🔥"
+            streak_line = f"{streak_emoji} Current streak: {current_streak} sessions" if current_streak > 1 and not is_late else ""
             await interaction.followup.send(
                 f"✅ Page {page_number} marked as complete!{late_text}\n"
                 f"🎉 You've completed all pages for this session!\n"
@@ -106,7 +107,8 @@ async def handle_completion(interaction: discord.Interaction, page_number: int):
             channel_id = guild_config.get('followup_channel_id') or guild_config.get('channel_id')
             channel = interaction.guild.get_channel(channel_id)
             if channel:
-                streak_text = f" (+{current_streak}🔥)" if current_streak > 1 else ""
+                streak_emoji = user.get('streak_emoji') or "🔥"
+                streak_text = f" (+{current_streak}{streak_emoji})" if current_streak > 1 else ""
                 await channel.send(f"✅ {interaction.user.mention} completed the wird{streak_text}")
     else:
         # Partial completion

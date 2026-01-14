@@ -169,6 +169,9 @@ class Database:
     async def set_user_tafsir_preference(self, user_id: int, guild_id: int, tafsir: str):
         await self.users.set_tafsir_preference(user_id, guild_id, tafsir)
 
+    async def set_user_streak_emoji(self, user_id: int, guild_id: int, emoji: str):
+        await self.users.set_streak_emoji(user_id, guild_id, emoji)
+
     # Cache methods
     async def get_translation_cache(self, page_number: int, language: str):
         return await self.cache.get_translation_cache(page_number, language)

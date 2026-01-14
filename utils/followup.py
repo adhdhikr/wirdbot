@@ -69,7 +69,8 @@ async def send_followup_message(guild_id: int, bot, session_id: int = None):
                     late_completions_list.append(f"{member.mention}")
                 else:
                     # Completed on time - show in completed section
-                    streak = f" - {user.get('session_streak', 0)}🔥" if user.get('session_streak', 0) > 1 else ""
+                    streak_emoji = user.get('streak_emoji') or "🔥"
+                    streak = f" - {user.get('session_streak', 0)}{streak_emoji}" if user.get('session_streak', 0) > 1 else ""
                     completed.append(f"{member.mention}{streak}")
             else:
                 # Still in progress (whether late or not)
