@@ -93,17 +93,33 @@ class UserCog(commands.Cog):
             await ctx.respond("You're not registered! Use `/register` first.", ephemeral=True)
             return
         from datetime import datetime
-        today = datetime.utcnow().strftime("%Y-%m-%d")
-        completions = await db.get_user_completions_for_date(ctx.author.id, ctx.guild_id, today)
+        
+        # Get current active session
+        active_session = await db.get_current_active_session(ctx.guild_id)
+        if active_session:
+            completions = await db.get_user_completions_for_session(ctx.author.id, active_session['id'])
+            total_pages = active_session['end_page'] - active_session['start_page'] + 1
+        else:
+            completions = []
+            total_pages = 0
+        
         embed = discord.Embed(title=f"📊 {ctx.author.display_name}'s Wird Stats", color=discord.Color.green())
-        if user['current_streak'] > 1:
-            embed.add_field(name="🔥 Current Streak", value=f"{user['current_streak']} days", inline=True)
-        if user['longest_streak'] > 1:
-            embed.add_field(name="🏆 Longest Streak", value=f"{user['longest_streak']} days", inline=True)
-        embed.add_field(name="📖 Today's Progress", value=f"{len(completions)} pages", inline=True)
+        
+        # Show session-based streaks
+        if user.get('session_streak', 0) > 1:
+            embed.add_field(name="🔥 Current Streak", value=f"{user['session_streak']} sessions", inline=True)
+        if user.get('longest_session_streak', 0) > 1:
+            embed.add_field(name="🏆 Longest Streak", value=f"{user['longest_session_streak']} sessions", inline=True)
+        
+        # Show current session progress
+        if active_session:
+            embed.add_field(name="📖 Current Session Progress", value=f"{len(completions)}/{total_pages} pages", inline=True)
+        
         if user['last_completion_date']:
             embed.add_field(name="📅 Last Completion", value=user['last_completion_date'], inline=False)
+        
         await ctx.respond(embed=embed, ephemeral=True)
+
 
 
 def setup(bot):

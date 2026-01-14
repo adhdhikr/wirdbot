@@ -5,8 +5,11 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-async def send_followup_message(guild_id: int, bot):
-    # ...existing code...
+async def send_followup_message(guild_id: int, bot, session_id: int = None):
+    """
+    Send or update the progress summary message for a session.
+    If session_id is None, uses the current active session.
+    """
     
     try:
         guild_config = await db.get_guild_config(guild_id)
@@ -26,9 +29,13 @@ async def send_followup_message(guild_id: int, bot):
         today = datetime.utcnow().strftime("%Y-%m-%d")
 
         registered_users = await db.get_registered_users(guild_id)
-        all_completions = await db.get_all_completions_for_date(guild_id, today)
 
-        session = await db.get_today_session(guild_id, today)
+        # Get the session to update (either specified or current active)
+        if session_id:
+            session = await db.get_session_by_id(session_id)
+        else:
+            session = await db.get_current_active_session(guild_id)
+        
         if not session:
             return
 
@@ -37,26 +44,43 @@ async def send_followup_message(guild_id: int, bot):
         completed = []
         in_progress = []
         not_started = []
+        late_completions_list = []
+
+        # Get users who completed THIS session late
+        late_user_ids = await db.get_late_completions_for_session(session['id'])
 
         for user in registered_users:
             user_id = user['user_id']
-            user_completions = all_completions.get(user_id, [])
+            # Get completions for THIS specific session
+            user_completions = await db.get_user_completions_for_session(user_id, session['id'])
             member = guild.get_member(user_id)
             if not member:
                 continue
+            
             count = len(user_completions)
+            
             if count == 0:
                 not_started.append(f"{member.mention}")
             elif count >= total_pages:
-                # Only show streak if > 1
-                streak = f" - {user['current_streak']}🔥" if user['current_streak'] > 1 else ""
-                completed.append(f"{member.mention}{streak}")
+                # User completed all pages for this session
+                # Check if they completed it late
+                if user_id in late_user_ids:
+                    # Completed late - show in late section
+                    late_completions_list.append(f"{member.mention}")
+                else:
+                    # Completed on time - show in completed section
+                    streak = f" - {user.get('session_streak', 0)}🔥" if user.get('session_streak', 0) > 1 else ""
+                    completed.append(f"{member.mention}{streak}")
             else:
+                # Still in progress (whether late or not)
                 in_progress.append(f"{member.mention} - {count}/{total_pages} pages")
 
+
+        # Format the session date nicely
+        session_date = session.get('session_date', today)
         embed = discord.Embed(
             title="📊 Daily Wird Progress",
-            description=f"**Date:** {today}\n**Pages Today:** {total_pages}",
+            description=f"**Date:** {session_date}\n**Pages:** {total_pages}",
             color=discord.Color.blue()
         )
 
@@ -78,6 +102,16 @@ async def send_followup_message(guild_id: int, bot):
             if len(in_progress) > 10:
                 embed.add_field(name="", value=f"... and {len(in_progress) - 10} more", inline=False)
 
+        # Add late completions section BEFORE not started
+        if late_completions_list:
+            embed.add_field(
+                name=f"⏰ Completed Late ({len(late_completions_list)})",
+                value="\n".join(late_completions_list[:10]),
+                inline=False
+            )
+            if len(late_completions_list) > 10:
+                embed.add_field(name="", value=f"... and {len(late_completions_list) - 10} more", inline=False)
+
         if not_started:
             embed.add_field(
                 name=f"❌ Not Started ({len(not_started)})", 
@@ -90,21 +124,20 @@ async def send_followup_message(guild_id: int, bot):
         if not completed and not in_progress and not not_started:
             embed.description += "\n\nNo registered users yet!"
 
-        # Try to edit the previous followup message if it exists, otherwise send a new one and update the session
-        message_id = None
-        if session.get('message_ids'):
-            ids = [mid for mid in session['message_ids'].split(',') if mid.strip()]
-            if ids:
-                try:
-                    message_id = int(ids[-1])
-                    msg = await channel.fetch_message(message_id)
-                    await msg.edit(embed=embed)
-                    return
-                except Exception as e:
-                    logger.warning(f"Could not edit last page message for summary: {e}")
-        # If we couldn't edit, send a new summary message and update the session's message_ids
+
+        # Try to edit the previous summary message if it exists, otherwise send a new one
+        summary_message_id = session.get('summary_message_id')
+        if summary_message_id:
+            try:
+                msg = await channel.fetch_message(summary_message_id)
+                await msg.edit(embed=embed)
+                return
+            except Exception as e:
+                logger.warning(f"Could not edit summary message: {e}")
+        
+        # If we couldn't edit, send a new summary message and store its ID
         new_msg = await channel.send(embed=embed)
-        # Update the session's message_ids to only point to the new summary message
-        await db.update_session_message_ids(guild_id, today, str(new_msg.id))
+        await db.update_session_summary_message_id(session['id'], new_msg.id)
+
     except Exception as e:
         logger.error(f"Error sending followup: {e}")

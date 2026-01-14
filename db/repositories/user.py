@@ -43,6 +43,51 @@ class UserRepository:
             (new_streak, longest, last_completion, user_id, guild_id)
         )
 
+    async def update_session_streak(self, user_id: int, guild_id: int, new_streak: int):
+        """Update the session-based streak for a user."""
+        user = await self.get(user_id, guild_id)
+        if not user:
+            return
+        
+        longest = max(user.get('longest_session_streak', 0), new_streak)
+        await self.db.execute_write(
+            """UPDATE users 
+               SET session_streak = ?, longest_session_streak = ?
+               WHERE user_id = ? AND guild_id = ?""",
+            (new_streak, longest, user_id, guild_id)
+        )
+
+    async def set_session_streak(self, user_id: int, guild_id: int, streak: int):
+        """Manually set a user's session streak (admin command)."""
+        user = await self.get(user_id, guild_id)
+        if not user:
+            # Create user if doesn't exist
+            await self.register(user_id, guild_id)
+        
+        # Update longest if new streak is higher
+        current_longest = user.get('longest_session_streak', 0) if user else 0
+        longest = max(current_longest, streak)
+        
+        await self.db.execute_write(
+            """UPDATE users 
+               SET session_streak = ?, longest_session_streak = ?
+               WHERE user_id = ? AND guild_id = ?""",
+            (streak, longest, user_id, guild_id)
+        )
+
+    async def get_user_session_completions(self, user_id: int, guild_id: int) -> List[int]:
+        """Get list of session IDs that this user has completed."""
+        rows = await self.db.execute_many(
+            """SELECT DISTINCT c.session_id 
+               FROM completions c
+               JOIN daily_sessions ds ON c.session_id = ds.id
+               WHERE c.user_id = ? AND c.guild_id = ? AND ds.is_completed = 1
+               ORDER BY ds.created_at ASC""",
+            (user_id, guild_id)
+        )
+        return [row['session_id'] for row in rows]
+
+
     async def clear_all(self, guild_id: int):
         await self.db.execute_write(
             "DELETE FROM users WHERE guild_id = ?",
