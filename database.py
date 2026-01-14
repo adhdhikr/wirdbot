@@ -137,6 +137,9 @@ class Database:
     async def update_session_summary_message_id(self, session_id: int, message_id: int):
         await self.sessions.update_summary_message_id(session_id, message_id)
 
+    async def get_session_by_summary_message_id(self, guild_id: int, message_id: int):
+        return await self.sessions.get_session_by_summary_message_id(guild_id, message_id)
+
 
 
     async def get_previous_session(self, guild_id: int, current_session_id: int):

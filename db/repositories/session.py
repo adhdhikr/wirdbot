@@ -19,6 +19,13 @@ class SessionRepository:
             (message_id, session_id)
         )
 
+    async def get_session_by_summary_message_id(self, guild_id: int, message_id: int) -> Optional[Dict[str, Any]]:
+        """Get session by its summary message ID."""
+        return await self.db.execute_one(
+            """SELECT * FROM daily_sessions WHERE guild_id = ? AND summary_message_id = ?""",
+            (guild_id, message_id)
+        )
+
     async def create(self, guild_id: int, session_date: str, start_page: int, end_page: int, message_ids: str):
         await self.db.execute_write(
             """INSERT INTO daily_sessions (guild_id, session_date, start_page, end_page, message_ids)
