@@ -372,6 +372,30 @@ class AdminCog(commands.Cog):
             ephemeral=True
         )
 
+    @admin.command(name="refresh_summary", description="Refresh a specific summary message")
+    @admin_or_specific_user()
+    @option("message_id", description="ID of the summary message to refresh")
+    async def refresh_summary(self, ctx: discord.ApplicationContext, message_id: str):
+        try:
+            msg_id = int(message_id)
+        except ValueError:
+            await ctx.respond("❌ Invalid message ID provided.", ephemeral=True)
+            return
+            
+        session = await db.get_session_by_summary_message_id(ctx.guild_id, msg_id)
+        
+        if not session:
+            await ctx.respond("❌ No session found linked to this message ID.", ephemeral=True)
+            return
+
+        from utils.followup import send_followup_message
+        await ctx.defer(ephemeral=True)
+        try:
+            await send_followup_message(ctx.guild_id, self.bot, session_id=session['id'])
+            await ctx.respond(f"✅ Summary refreshed for session {session['session_date']}!", ephemeral=True)
+        except Exception as e:
+            await ctx.respond(f"❌ Failed to refresh summary: {e}", ephemeral=True)
+
             
 
 def setup(bot):
