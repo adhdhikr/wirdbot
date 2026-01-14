@@ -50,6 +50,20 @@ class SessionRepository:
             (session_id,)
         )
 
+    async def get_previous_session(self, guild_id: int, current_session_id: int) -> Optional[Dict[str, Any]]:
+        """Get the session immediately preceding the current one."""
+        # First get current session to know its created_at
+        current = await self.get_session_by_id(current_session_id)
+        if not current:
+            return None
+            
+        return await self.db.execute_one(
+            """SELECT * FROM daily_sessions 
+               WHERE guild_id = ? AND created_at < ?
+               ORDER BY created_at DESC LIMIT 1""",
+            (guild_id, current['created_at'])
+        )
+
 
     async def get_session_for_page(self, guild_id: int, page_number: int) -> Optional[Dict[str, Any]]:
         """Find which session a specific page belongs to."""
@@ -76,6 +90,15 @@ class SessionRepository:
         return await self.db.execute_many(
             """SELECT * FROM daily_sessions 
                WHERE guild_id = ? AND is_completed = 1
+               ORDER BY created_at ASC""",
+            (guild_id,)
+        )
+
+    async def get_all_sessions_for_guild(self, guild_id: int) -> List[Dict[str, Any]]:
+        """Get all sessions for a guild, ordered by creation date."""
+        return await self.db.execute_many(
+            """SELECT * FROM daily_sessions 
+               WHERE guild_id = ?
                ORDER BY created_at ASC""",
             (guild_id,)
         )

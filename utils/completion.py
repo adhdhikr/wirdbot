@@ -85,11 +85,10 @@ async def handle_completion(interaction: discord.Interaction, page_number: int):
         await db.mark_session_completed(target_session['id'])
         
         # Only update streak if completing current session on time (not late)
-        if not is_late and target_session['id'] == active_session['id']:
-            current_streak = await calculate_session_streak(user, interaction.guild_id, active_session['id'])
-            await db.update_session_streak(interaction.user.id, interaction.guild_id, current_streak)
+        if target_session['id'] == active_session['id']:
+             current_streak = await update_streak_incrementally(user, interaction.guild_id, active_session['id'], is_late)
         else:
-            current_streak = user.get('session_streak', 0)
+             current_streak = await update_streak_incrementally(user, interaction.guild_id, target_session['id'], is_late)
 
         if guild_config.get('show_all_notifications', False):
             late_text = " (Completed Late)" if is_late else ""
@@ -125,23 +124,38 @@ async def handle_completion(interaction: discord.Interaction, page_number: int):
     await send_followup_message(interaction.guild_id, interaction.client, session_id=target_session['id'])
 
 
-async def calculate_session_streak(user: dict, guild_id: int, current_session_id: int) -> int:
+async def update_streak_incrementally(user: dict, guild_id: int, current_session_id: int, is_late: bool):
     """
-    Calculate streak based on consecutive completed sessions.
-    A session must be completed to count toward the streak.
+    Update streak incrementally O(1).
+    - If completing late: Streak does not change.
+    - If completing on time:
+      - Check if previous session (N-1) was completed ON TIME.
+      - If yes: New Streak = User's Stored Streak + 1.
+      - If no: New Streak = 1.
     """
-    # Get all completed sessions for this guild, ordered by creation date
-    all_sessions = await db.get_completed_sessions_for_guild(guild_id)
+    if is_late:
+        return user.get('session_streak', 0)
+
+    # Completing ON TIME.
+    previous_session = await db.get_previous_session(guild_id, current_session_id)
     
-    # Get user's completed session IDs
-    user_completed_sessions = await db.get_user_session_completions(user['user_id'], guild_id)
+    new_streak = 1
     
-    # Calculate consecutive sessions completed (working backwards from most recent)
-    streak = 0
-    for session in reversed(all_sessions):
-        if session['id'] in user_completed_sessions:
-            streak += 1
+    if previous_session:
+        # Check if user completed previous session validly
+        status = await db.get_session_completion_status(user['user_id'], previous_session['id'])
+        
+        if status and not status['is_late']:
+            # Previous link in chain is solid. Increment.
+            current_stored = user.get('session_streak', 0)
+            new_streak = current_stored + 1
         else:
-            break  # Streak broken
-    
-    return max(streak, 1)  # Minimum streak is 1 when completing a session
+            # Previous link broken (Not done or Done Late). Reset.
+            new_streak = 1
+    else:
+        # No previous session exists (this is the first one ever).
+        new_streak = 1
+        
+    # Update DB
+    await db.update_session_streak(user['user_id'], guild_id, new_streak)
+    return new_streak

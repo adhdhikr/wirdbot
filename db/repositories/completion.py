@@ -1,4 +1,4 @@
-from typing import List, Dict
+from typing import List, Dict, Optional
 from db.connection import DatabaseConnection
 
 
@@ -58,11 +58,35 @@ class CompletionRepository:
         return [row['user_id'] for row in rows]
 
 
+    async def get_session_completion_status(self, user_id: int, session_id: int) -> Optional[Dict[str, bool]]:
+        """
+        Check if user completed a session and return status.
+        Returns None if not completed (or partially completed).
+        Returns {'is_late': bool} if completed.
+        Checks if ALL pages are completed.
+        """
+        row = await self.db.execute_one(
+            """SELECT ds.start_page, ds.end_page, COUNT(DISTINCT c.page_number) as completed_count, MAX(c.is_late) as is_late
+               FROM daily_sessions ds
+               LEFT JOIN completions c ON ds.id = c.session_id AND c.user_id = ?
+               WHERE ds.id = ?
+               GROUP BY ds.id""",
+            (user_id, session_id)
+        )
+        
+        if not row:
+            return None
+            
+        total_pages = row['end_page'] - row['start_page'] + 1
+        if row['completed_count'] >= total_pages:
+            return {'is_late': bool(row['is_late'])}
+            
+        return None
+
     async def has_user_completed_session(self, user_id: int, session_id: int) -> bool:
         """Check if a user has completed all pages for a session."""
-        # This will be used in conjunction with session page count
-        completions = await self.get_user_completions_for_session(user_id, session_id)
-        return len(completions) > 0  # Actual completion check happens in completion.py
+        status = await self.get_session_completion_status(user_id, session_id)
+        return status is not None
 
     async def clear_all(self, guild_id: int):
         await self.db.execute_write(

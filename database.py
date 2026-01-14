@@ -103,6 +103,9 @@ class Database:
     async def get_completed_sessions_for_guild(self, guild_id: int):
         return await self.sessions.get_completed_sessions_for_guild(guild_id)
     
+    async def get_all_sessions_for_guild(self, guild_id: int):
+        return await self.sessions.get_all_sessions_for_guild(guild_id)
+    
     async def get_user_completions_for_session(self, user_id: int, session_id: int):
         return await self.completions.get_user_completions_for_session(user_id, session_id)
     
@@ -135,6 +138,12 @@ class Database:
         await self.sessions.update_summary_message_id(session_id, message_id)
 
 
+
+    async def get_previous_session(self, guild_id: int, current_session_id: int):
+        return await self.sessions.get_previous_session(guild_id, current_session_id)
+        
+    async def get_session_completion_status(self, user_id: int, session_id: int):
+        return await self.completions.get_session_completion_status(user_id, session_id)
 
     async def reset_guild_data(self, guild_id: int):
         """Reset all data for a guild (admin command)"""
