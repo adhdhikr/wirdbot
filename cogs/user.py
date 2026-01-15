@@ -1,4 +1,6 @@
 import discord
+import re
+from discord import option
 from discord.ext import commands
 from main import db
 from utils.user_management import assign_role, remove_role
@@ -107,7 +109,8 @@ class UserCog(commands.Cog):
         
         # Show session-based streaks
         if user.get('session_streak', 0) > 1:
-            embed.add_field(name="🔥 Current Streak", value=f"{user['session_streak']} sessions", inline=True)
+            streak_emoji = user.get('streak_emoji') or "🔥"
+            embed.add_field(name=f"{streak_emoji} Current Streak", value=f"{user['session_streak']} sessions", inline=True)
         if user.get('longest_session_streak', 0) > 1:
             embed.add_field(name="🏆 Longest Streak", value=f"{user['longest_session_streak']} sessions", inline=True)
         
@@ -119,6 +122,29 @@ class UserCog(commands.Cog):
             embed.add_field(name="📅 Last Completion", value=user['last_completion_date'], inline=False)
         
         await ctx.respond(embed=embed, ephemeral=True)
+
+    @discord.slash_command(name="emoji", description="Set your personal streak emoji")
+    @option("emoji", description="The emoji you want to use (e.g. 🔥)", required=True)
+    async def emoji(self, ctx: discord.ApplicationContext, emoji: str):
+        # Check if user is registered
+        user = await db.get_user(ctx.author.id, ctx.guild_id)
+        if not user or not user['registered']:
+            await ctx.respond("You're not registered! Use `/register` first.", ephemeral=True)
+            return
+
+        # Validation logic
+        # Custom Discord Emoji: <a:name:id> or <:name:id>
+        # Or standard emoji (strict length 1 check as per user request "shouldnt be more than one char")
+        custom_emoji_pattern = r"^<a?:[a-zA-Z0-9_]+:[0-9]+>$"
+        is_custom = bool(re.match(custom_emoji_pattern, emoji))
+        is_standard = len(emoji) == 1
+        
+        if not (is_custom or is_standard):
+            await ctx.respond("❌ Invalid emoji! usage: `/emoji 🔥`\nMust be a single emoji or a valid custom Discord emoji.", ephemeral=True)
+            return
+
+        await db.set_user_streak_emoji(ctx.author.id, ctx.guild_id, emoji)
+        await ctx.respond(f"✅ Your streak emoji has been set to {emoji}", ephemeral=True)
 
 
 
