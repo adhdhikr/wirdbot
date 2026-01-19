@@ -75,18 +75,17 @@ class UserRepository:
             (streak, longest, user_id, guild_id)
         )
 
-    async def get_user_session_completions(self, user_id: int, guild_id: int) -> Dict[int, bool]:
-        """Get dict of {session_id: is_late} for fully completed sessions."""
+    async def get_user_session_completions(self, user_id: int, guild_id: int) -> List[int]:
+        """Get list of session IDs that this user has completed."""
         rows = await self.db.execute_many(
-            """SELECT c.session_id, MAX(c.is_late) as is_late
+            """SELECT DISTINCT c.session_id 
                FROM completions c
                JOIN daily_sessions ds ON c.session_id = ds.id
-               WHERE c.user_id = ? AND c.guild_id = ?
-               GROUP BY c.session_id
-               HAVING COUNT(DISTINCT c.page_number) = (ds.end_page - ds.start_page + 1)""",
+               WHERE c.user_id = ? AND c.guild_id = ? AND ds.is_completed = 1
+               ORDER BY ds.created_at ASC""",
             (user_id, guild_id)
         )
-        return {row['session_id']: bool(row['is_late']) for row in rows}
+        return [row['session_id'] for row in rows]
 
 
     async def clear_all(self, guild_id: int):
@@ -113,10 +112,4 @@ class UserRepository:
         await self.db.execute_write(
             "UPDATE users SET tafsir_preference = ? WHERE user_id = ? AND guild_id = ?",
             (tafsir, user_id, guild_id)
-        )
-
-    async def set_streak_emoji(self, user_id: int, guild_id: int, emoji: str):
-        await self.db.execute_write(
-            "UPDATE users SET streak_emoji = ? WHERE user_id = ? AND guild_id = ?",
-            (emoji, user_id, guild_id)
         )
