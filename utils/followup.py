@@ -60,21 +60,21 @@ async def send_followup_message(guild_id: int, bot, session_id: int = None):
             count = len(user_completions)
             
             if count == 0:
-                not_started.append(f"{member.display_name}")
+                not_started.append(f"**{member.display_name}**")
             elif count >= total_pages:
                 # User completed all pages for this session
                 # Check if they completed it late
                 if user_id in late_user_ids:
                     # Completed late - show in late section
-                    late_completions_list.append(f"{member.display_name}")
+                    late_completions_list.append(f"**{member.display_name}**")
                 else:
                     # Completed on time - show in completed section
                     streak_emoji = user.get('streak_emoji') or "🔥"
                     streak = f" - {user.get('session_streak', 0)}{streak_emoji}" if user.get('session_streak', 0) > 1 else ""
-                    completed.append(f"{member.display_name}{streak}")
+                    completed.append(f"**{member.display_name}**{streak}")
             else:
                 # Still in progress (whether late or not)
-                in_progress.append(f"{member.display_name} - {count}/{total_pages} pages")
+                in_progress.append(f"**{member.display_name}** - {count}/{total_pages} pages")
 
 
         # Format the session date nicely
