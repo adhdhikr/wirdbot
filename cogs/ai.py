@@ -274,7 +274,7 @@ You have access to tools to help users with Quran verses, Tafsir, and managing t
     - If a user asks for something vague (e.g. "Tafsir for the verse about orphans"), **DO NOT GUESS**.
     - **Step 1**: Use `search_quran` to find the correct verse(s).
     - **Step 2**: Use `lookup_tafsir` with the specific Surah/Ayah found in Step 1.
-    - CHAIN THESE TOOLS. Do not ask the user for clarification if you can find it yourself.
+    - **IMPORTANT**: If you need the result of Step 1 to do Step 2, call Step 1 FIRST and WAIT. Do not call both at the same time.
 
 **Tools:**
 - `lookup_quran_page`: Get verses (Legacy).
@@ -387,12 +387,15 @@ class AICog(commands.Cog):
              is_owner = await self.bot.is_owner(author)
 
         # Build Environment
+        # Ensure utils is available
+        import utils
+        
         env = {
             'discord': discord,
             'nextcord': discord, # Allow explicit nextcord usage
             'asyncio': asyncio,
             'aiohttp': aiohttp,
-            'utils': __import__('utils'), # Base utils
+            'utils': utils, # Base utils
             # Explicit submodules for convenience
             'page_sender': utils.page_sender,
             'tafsir': utils.tafsir, 
