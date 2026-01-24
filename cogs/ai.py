@@ -389,6 +389,7 @@ class AICog(commands.Cog):
         # Build Environment
         # Ensure utils is available
         import utils
+        from database import db
         
         env = {
             'discord': discord,
