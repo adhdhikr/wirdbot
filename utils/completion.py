@@ -1,4 +1,4 @@
-import discord
+import nextcord as discord
 from database import db
 from views import RegistrationView
 from datetime import datetime, timedelta

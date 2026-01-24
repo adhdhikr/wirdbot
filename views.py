@@ -1,4 +1,5 @@
-import discord
+import nextcord as discord
+from nextcord.ui import View, Button, Select, TextInput, Modal
 from typing import Optional, List
 
 
@@ -366,34 +367,34 @@ class SetupModal(discord.ui.Modal):
     def __init__(self):
         super().__init__(title="Configure Wird Bot")
         
-        self.add_item(discord.ui.InputText(
+        self.add_item(TextInput(
             label="Mosque ID",
             placeholder="Enter your mosque ID for prayer times",
             required=True
         ))
         
-        self.add_item(discord.ui.InputText(
+        self.add_item(TextInput(
             label="Mushaf Type",
             placeholder="e.g., madani, uthmani, indopak",
-            value="madani",
+            default_value="madani",
             required=True
         ))
         
-        self.add_item(discord.ui.InputText(
+        self.add_item(TextInput(
             label="Pages Per Day",
             placeholder="How many pages to send daily (1-20)",
-            value="1",
+            default_value="1",
             required=True
         ))
         
-        self.add_item(discord.ui.InputText(
+        self.add_item(TextInput(
             label="Channel ID",
             placeholder="Channel ID where pages will be sent",
             required=True
         ))
 
     async def callback(self, interaction: discord.Interaction):
-        from .utils.config import handle_setup
+        from utils.config import handle_setup
         await handle_setup(interaction, self.children)
 
 
@@ -402,7 +403,7 @@ class ScheduleTimeModal(discord.ui.Modal):
         super().__init__(title="Add Custom Time")
         self.guild_id = guild_id
         
-        self.add_item(discord.ui.InputText(
+        self.add_item(TextInput(
             label="Time (in your timezone)",
             placeholder="e.g., 8:00 AM, 14:30, or 2:30 PM",
             required=True
@@ -469,7 +470,6 @@ class ScheduleTimeModal(discord.ui.Modal):
             await interaction.response.send_message("Invalid time format! Use HH:MM (e.g., 14:30) or 12-hour (e.g., 8:00 AM)", ephemeral=True)
         except Exception as e:
             await interaction.response.send_message(f"Error: {str(e)}", ephemeral=True)
-        # ...existing code...
 
 
 class ResetConfirmationView(discord.ui.View):
@@ -584,4 +584,3 @@ class PaginatedView(discord.ui.View):
             embed.set_footer(text=f"Page {self.current_page + 1} of {len(self.pages)}")
 
             await interaction.response.edit_message(embed=embed, view=self)
-

@@ -1,7 +1,7 @@
-import discord
+import nextcord as discord
 import re
-from discord import option
-from discord.ext import commands
+from nextcord.ext import commands
+from nextcord import SlashOption
 from main import db
 from utils.user_management import assign_role, remove_role
 
@@ -11,7 +11,7 @@ class UserCog(commands.Cog):
         self.bot = bot
 
     @discord.slash_command(name="help", description="Show all available commands")
-    async def help(self, ctx: discord.ApplicationContext):
+    async def help(self, interaction: discord.Interaction):
         embed = discord.Embed(
             title="📖 Wird Bot Commands",
             description="Here are all available commands:",
@@ -55,57 +55,57 @@ class UserCog(commands.Cog):
         
         embed.set_footer(text="Use /setup to get started! (Admin only)")
         
-        await ctx.respond(embed=embed, ephemeral=True)
+        await interaction.response.send_message(embed=embed, ephemeral=True)
 
     @discord.slash_command(name="register", description="Register for daily Wird tracking")
-    async def register(self, ctx: discord.ApplicationContext):
+    async def register(self, interaction: discord.Interaction):
         # use shared db instance
-        user = await db.get_user(ctx.author.id, ctx.guild_id)
+        user = await db.get_user(interaction.user.id, interaction.guild_id)
         if user and user['registered']:
-            await ctx.respond("You're already registered!", ephemeral=True)
+            await interaction.response.send_message("You're already registered!", ephemeral=True)
             return
 
         # Use unified registration and role logic
         from utils.user_management import register_user_and_assign_role
         await register_user_and_assign_role(
-            ctx.author,
-            ctx.guild_id,
-            respond_func=lambda msg: ctx.respond(msg, ephemeral=True)
+            interaction.user,
+            interaction.guild_id,
+            respond_func=lambda msg: interaction.response.send_message(msg, ephemeral=True)
         )
         # Update the followup/progress message after registration
         from utils.followup import send_followup_message
-        await send_followup_message(ctx.guild_id, self.bot)
+        await send_followup_message(interaction.guild_id, self.bot)
 
     @discord.slash_command(name="unregister", description="Unregister from daily Wird tracking")
-    async def unregister(self, ctx: discord.ApplicationContext):
+    async def unregister(self, interaction: discord.Interaction):
         from main import db
-        user = await db.get_user(ctx.author.id, ctx.guild_id)
+        user = await db.get_user(interaction.user.id, interaction.guild_id)
         if not user or not user['registered']:
-            await ctx.respond("You're not registered!", ephemeral=True)
+            await interaction.response.send_message("You're not registered!", ephemeral=True)
             return
-        await db.unregister_user(ctx.author.id, ctx.guild_id)
-        await remove_role(ctx.author, ctx.guild_id)
-        await ctx.respond("✅ You've been unregistered from Wird tracking", ephemeral=True)
+        await db.unregister_user(interaction.user.id, interaction.guild_id)
+        await remove_role(interaction.user, interaction.guild_id)
+        await interaction.response.send_message("✅ You've been unregistered from Wird tracking", ephemeral=True)
 
     @discord.slash_command(name="stats", description="View your Wird statistics")
-    async def stats(self, ctx: discord.ApplicationContext):
+    async def stats(self, interaction: discord.Interaction):
         from main import db
-        user = await db.get_user(ctx.author.id, ctx.guild_id)
+        user = await db.get_user(interaction.user.id, interaction.guild_id)
         if not user or not user['registered']:
-            await ctx.respond("You're not registered! Use `/register` first.", ephemeral=True)
+            await interaction.response.send_message("You're not registered! Use `/register` first.", ephemeral=True)
             return
         from datetime import datetime
         
         # Get current active session
-        active_session = await db.get_current_active_session(ctx.guild_id)
+        active_session = await db.get_current_active_session(interaction.guild_id)
         if active_session:
-            completions = await db.get_user_completions_for_session(ctx.author.id, active_session['id'])
+            completions = await db.get_user_completions_for_session(interaction.user.id, active_session['id'])
             total_pages = active_session['end_page'] - active_session['start_page'] + 1
         else:
             completions = []
             total_pages = 0
         
-        embed = discord.Embed(title=f"📊 {ctx.author.display_name}'s Wird Stats", color=discord.Color.green())
+        embed = discord.Embed(title=f"📊 {interaction.user.display_name}'s Wird Stats", color=discord.Color.green())
         
         # Show session-based streaks
         if user.get('session_streak', 0) > 1:
@@ -121,15 +121,18 @@ class UserCog(commands.Cog):
         if user['last_completion_date']:
             embed.add_field(name="📅 Last Completion", value=user['last_completion_date'], inline=False)
         
-        await ctx.respond(embed=embed, ephemeral=True)
+        await interaction.response.send_message(embed=embed, ephemeral=True)
 
     @discord.slash_command(name="emoji", description="Set your personal streak emoji")
-    @option("emoji", description="The emoji you want to use (e.g. 🔥)", required=True)
-    async def emoji(self, ctx: discord.ApplicationContext, emoji: str):
+    async def emoji(
+        self, 
+        interaction: discord.Interaction, 
+        emoji: str = SlashOption(description="The emoji you want to use (e.g. 🔥)", required=True)
+    ):
         # Check if user is registered
-        user = await db.get_user(ctx.author.id, ctx.guild_id)
+        user = await db.get_user(interaction.user.id, interaction.guild_id)
         if not user or not user['registered']:
-            await ctx.respond("You're not registered! Use `/register` first.", ephemeral=True)
+            await interaction.response.send_message("You're not registered! Use `/register` first.", ephemeral=True)
             return
 
         # Validation logic
@@ -140,11 +143,11 @@ class UserCog(commands.Cog):
         is_standard = len(emoji) == 1
         
         if not (is_custom or is_standard):
-            await ctx.respond("❌ Invalid emoji! usage: `/emoji 🔥`\nMust be a single emoji or a valid custom Discord emoji.", ephemeral=True)
+            await interaction.response.send_message("❌ Invalid emoji! usage: `/emoji 🔥`\nMust be a single emoji or a valid custom Discord emoji.", ephemeral=True)
             return
 
-        await db.set_user_streak_emoji(ctx.author.id, ctx.guild_id, emoji)
-        await ctx.respond(f"✅ Your streak emoji has been set to {emoji}", ephemeral=True)
+        await db.set_user_streak_emoji(interaction.user.id, interaction.guild_id, emoji)
+        await interaction.response.send_message(f"✅ Your streak emoji has been set to {emoji}", ephemeral=True)
 
 
 

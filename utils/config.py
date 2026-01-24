@@ -1,4 +1,4 @@
-import discord
+import nextcord as discord
 from database import db
 from config import MIN_PAGES_PER_DAY, MAX_PAGES_PER_DAY
 

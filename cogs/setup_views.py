@@ -2,8 +2,8 @@
 
 def setup(bot):
     pass
-import discord
-from discord.ui import View, Button, Select, Modal, InputText
+import nextcord as discord
+from nextcord.ui import View, Button, Select, Modal, TextInput
 from database import db
 from typing import Optional
 import pytz
@@ -183,7 +183,7 @@ class TimezoneManualModal(Modal):
         self.guild_id = guild_id
         self.setup_data = setup_data
         
-        self.add_item(InputText(
+        self.add_item(TextInput(
             label="Timezone (e.g., America/New_York)",
             placeholder="Enter timezone name or search for your city",
             required=True
@@ -326,7 +326,7 @@ class ChannelManualModal(Modal):
         self.guild_id = guild_id
         self.setup_data = setup_data
         
-        self.add_item(InputText(
+        self.add_item(TextInput(
             label="Channel ID or #channel-mention",
             placeholder="Right-click channel → Copy ID, or type #channel",
             required=True
@@ -417,7 +417,7 @@ class InitialTimeModal(Modal):
         self.guild_id = guild_id
         self.setup_data = setup_data
         
-        self.add_item(InputText(
+        self.add_item(TextInput(
             label=f"Time in {setup_data.get('timezone', 'your timezone')}",
             placeholder="e.g., 8:00 AM or 20:30",
             required=True
@@ -718,10 +718,10 @@ class PagesPerDayModal(Modal):
         self.guild_id = guild_id
         self.setup_data = setup_data
         
-        self.add_item(InputText(
+        self.add_item(TextInput(
             label="Pages to send daily (1-20)",
             placeholder="1",
-            value=str(setup_data.get('pages_per_day', 1)),
+            default_value=str(setup_data.get('pages_per_day', 1)),
             required=True
         ))
     
@@ -759,10 +759,10 @@ class MosqueIdModal(Modal):
         self.guild_id = guild_id
         self.setup_data = setup_data
         
-        self.add_item(InputText(
+        self.add_item(TextInput(
             label="Mosque ID for prayer times",
             placeholder="e.g., cio-gatineau",
-            value=setup_data.get('mosque_id', 'cio-gatineau'),
+            default_value=setup_data.get('mosque_id', 'cio-gatineau'),
             required=False
         ))
     

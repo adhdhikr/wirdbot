@@ -1,6 +1,6 @@
-import discord
-from discord.ext import commands
-from discord import option
+import nextcord as discord
+from nextcord.ext import commands
+from nextcord import SlashOption
 from views import ScheduleTimeModal
 from database import db
 from utils.user_management import assign_role, remove_role
@@ -10,18 +10,18 @@ from config import API_BASE_URL
 
 def admin_or_specific_user():
     """Check if user has manage_channels permission or is the specific user ID"""
-    async def predicate(ctx):
+    async def predicate(interaction: discord.Interaction):
         # Allow if user has manage_channels permission
-        if ctx.author.guild_permissions.manage_channels:
+        if interaction.user.guild_permissions.manage_channels:
             return True
         # Allow if user ID matches the specific user
-        if ctx.author.id == 1030575337869955102:
+        if interaction.user.id == 1030575337869955102:
             return True
         return False
     return commands.check(predicate)
 
 
-async def get_mushaf_types(ctx: discord.AutocompleteContext):
+async def get_mushaf_types(interaction: discord.Interaction, current: str):
     """Fetch available mushaf types from the API"""
     try:
         async with aiohttp.ClientSession() as session:
@@ -29,12 +29,14 @@ async def get_mushaf_types(ctx: discord.AutocompleteContext):
                 if response.status == 200:
                     data = await response.json()
                     mushafs = data.get("mushafs", [])
-                    return mushafs[:25]  # Discord limits to 25 options
+                    # Filter based on current input
+                    return [m for m in mushafs if current.lower() in m.lower()][:25]
     except Exception:
         pass
     
     # Fallback to defaults if API is unavailable
-    return ["madani", "uthmani", "indopak"]
+    defaults = ["madani", "uthmani", "indopak"]
+    return [d for d in defaults if current.lower() in d.lower()]
 
 
 
@@ -43,17 +45,22 @@ class AdminCog(commands.Cog):
         self.bot = bot
 
     # Create the admin command group
-    admin = discord.SlashCommandGroup(
-        "admin",
-        "Admin commands for managing the Wird bot (Manage Channels permission required)"
-    )
+    # In nextcord, we use @nextcord.slash_command and subcommands via main_cmd.subcommand
+    # OR we can just use class method decorators if we want top-level group
+    # But for a cog, usually:
+    # @nextcord.slash_command() ...
+    # Or purely using the group approach
+    
+    @discord.slash_command(name="admin", description="Admin commands for managing the Wird bot")
+    async def admin(self, interaction: discord.Interaction):
+        pass
 
-    @admin.command(name="setup", description="Configure the Wird bot with interactive wizard")
+    @admin.subcommand(name="setup", description="Configure the Wird bot with interactive wizard")
     @admin_or_specific_user()
-    async def setup(self, ctx: discord.ApplicationContext):
+    async def setup(self, interaction: discord.Interaction):
         from cogs.setup_views import SetupWizardView
         from main import db
-        guild_config = await db.get_guild_config(ctx.guild_id)
+        guild_config = await db.get_guild_config(interaction.guild_id)
         if guild_config and guild_config['configured']:
             # Show reconfiguration warning
             embed = discord.Embed(
@@ -66,8 +73,8 @@ class AdminCog(commands.Cog):
             embed.add_field(name="Current Channel", value=f"<#{guild_config['channel_id']}>", inline=True)
             # Add confirmation view
             view = discord.ui.View(timeout=60)
-            async def confirm_callback(interaction: discord.Interaction):
-                wizard_view = SetupWizardView(ctx.guild_id)
+            async def confirm_callback(intx: discord.Interaction):
+                wizard_view = SetupWizardView(intx.guild_id)
                 wizard_embed = discord.Embed(
                     title="⚙️ Setup Wizard",
                     description="Welcome to the Wird Bot Setup Wizard! 🎉\n\n"
@@ -80,9 +87,9 @@ class AdminCog(commands.Cog):
                                 "Let's get started!",
                     color=discord.Color.blurple()
                 )
-                await interaction.response.edit_message(embed=wizard_embed, view=wizard_view)
-            async def cancel_callback(interaction: discord.Interaction):
-                await interaction.response.edit_message(
+                await intx.response.edit_message(embed=wizard_embed, view=wizard_view)
+            async def cancel_callback(intx: discord.Interaction):
+                await intx.response.edit_message(
                     content="Setup cancelled. Your current configuration is unchanged.",
                     embed=None,
                     view=None
@@ -93,10 +100,10 @@ class AdminCog(commands.Cog):
             cancel_btn.callback = cancel_callback
             view.add_item(confirm_btn)
             view.add_item(cancel_btn)
-            await ctx.respond(embed=embed, view=view, ephemeral=True)
+            await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
         else:
             # Start fresh setup
-            view = SetupWizardView(ctx.guild_id)
+            view = SetupWizardView(interaction.guild_id)
             embed = discord.Embed(
                 title="⚙️ Setup Wizard",
                 description="Welcome to the Wird Bot Setup Wizard! 🎉\n\n"
@@ -109,16 +116,16 @@ class AdminCog(commands.Cog):
                             "Let's get started!",
                 color=discord.Color.blurple()
             )
-            await ctx.respond(embed=embed, view=view, ephemeral=True)
+            await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
 
-    @admin.command(name="config", description="View current server configuration")
+    @admin.subcommand(name="config", description="View current server configuration")
     @admin_or_specific_user()
-    async def config(self, ctx: discord.ApplicationContext):
-        guild_config = await db.get_guild_config(ctx.guild_id)
+    async def config(self, interaction: discord.Interaction):
+        guild_config = await db.get_guild_config(interaction.guild_id)
         if not guild_config or not guild_config['configured']:
-            await ctx.respond("Server not configured! Use `/admin setup` to configure.", ephemeral=True)
+            await interaction.response.send_message("Server not configured! Use `/admin setup` to configure.", ephemeral=True)
             return
-        scheduled_times = await db.get_scheduled_times(ctx.guild_id)
+        scheduled_times = await db.get_scheduled_times(interaction.guild_id)
         timezone = guild_config.get('timezone', 'UTC')
         import pytz
         from datetime import datetime, timedelta
@@ -162,86 +169,109 @@ class AdminCog(commands.Cog):
             embed.set_footer(text=f"Current time in {timezone}: {current_time} | Next scheduled: <t:{unix_ts}:R>")
         else:
             embed.set_footer(text=f"Current time in {timezone}: {current_time}")
-        await ctx.respond(embed=embed, ephemeral=True)
+        await interaction.response.send_message(embed=embed, ephemeral=True)
 
-    @admin.command(name="schedule", description="Manage scheduled times")
+    @admin.subcommand(name="schedule", description="Manage scheduled times")
     @admin_or_specific_user()
-    async def schedule(self, ctx: discord.ApplicationContext):
+    async def schedule(self, interaction: discord.Interaction):
         from cogs.schedule_views import ScheduleMainView
-        guild_config = await db.get_guild_config(ctx.guild_id)
+        guild_config = await db.get_guild_config(interaction.guild_id)
         if not guild_config or not guild_config['configured']:
-            await ctx.respond("Please run `/admin setup` first!", ephemeral=True)
+            await interaction.response.send_message("Please run `/admin setup` first!", ephemeral=True)
             return
-        view = ScheduleMainView(ctx.guild_id)
+        view = ScheduleMainView(interaction.guild_id)
         await view.setup_items()
         embed = await view.create_embed()
-        await ctx.respond(embed=embed, view=view, ephemeral=True)
+        await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
 
-    @admin.command(name="set_mushaf", description="Change mushaf type")
+    @admin.subcommand(name="set_mushaf", description="Change mushaf type")
     @admin_or_specific_user()
-    @option("mushaf", description="Mushaf type", autocomplete=get_mushaf_types)
-    async def set_mushaf(self, ctx: discord.ApplicationContext, mushaf: str):
-        await db.create_or_update_guild(ctx.guild_id, mushaf_type=mushaf)
-        await ctx.respond(f"✅ Updated mushaf to {mushaf}", ephemeral=True)
+    async def set_mushaf(
+        self, 
+        interaction: discord.Interaction, 
+        mushaf: str = SlashOption(description="Mushaf type", autocomplete=True)
+    ):
+        await db.create_or_update_guild(interaction.guild_id, mushaf_type=mushaf)
+        await interaction.response.send_message(f"✅ Updated mushaf to {mushaf}", ephemeral=True)
+    
+    @set_mushaf.on_autocomplete("mushaf")
+    async def set_mushaf_autocomplete(self, interaction: discord.Interaction, current: str):
+        await interaction.response.send_autocomplete(await get_mushaf_types(interaction, current))
 
-    @admin.command(name="set_pages", description="Change pages per day")
+    @admin.subcommand(name="set_pages", description="Change pages per day")
     @admin_or_specific_user()
-    @option("pages_per_day", description="Pages to send per day", min_value=1, max_value=20)
-    async def set_pages(self, ctx: discord.ApplicationContext, pages_per_day: int):
-        await db.create_or_update_guild(ctx.guild_id, pages_per_day=pages_per_day)
-        await ctx.respond(f"✅ Updated pages per day to {pages_per_day}", ephemeral=True)
+    async def set_pages(
+        self, 
+        interaction: discord.Interaction, 
+        pages_per_day: int = SlashOption(description="Pages to send per day", min_value=1, max_value=20)
+    ):
+        await db.create_or_update_guild(interaction.guild_id, pages_per_day=pages_per_day)
+        await interaction.response.send_message(f"✅ Updated pages per day to {pages_per_day}", ephemeral=True)
 
-    @admin.command(name="set_channel", description="Change the wird channel")
+    @admin.subcommand(name="set_channel", description="Change the wird channel")
     @admin_or_specific_user()
-    @option("channel", description="Channel where pages will be sent", type=discord.TextChannel)
-    async def set_channel(self, ctx: discord.ApplicationContext, channel: discord.TextChannel):
-        await db.create_or_update_guild(ctx.guild_id, channel_id=channel.id)
-        await ctx.respond(f"✅ Updated channel to {channel.mention}", ephemeral=True)
+    async def set_channel(
+        self, 
+        interaction: discord.Interaction, 
+        channel: discord.TextChannel = SlashOption(description="Channel where pages will be sent")
+    ):
+        await db.create_or_update_guild(interaction.guild_id, channel_id=channel.id)
+        await interaction.response.send_message(f"✅ Updated channel to {channel.mention}", ephemeral=True)
 
-    @admin.command(name="set_mosque", description="Change mosque ID for prayer times")
+    @admin.subcommand(name="set_mosque", description="Change mosque ID for prayer times")
     @admin_or_specific_user()
-    @option("mosque_id", description="Mosque ID")
-    async def set_mosque(self, ctx: discord.ApplicationContext, mosque_id: str):
-        await db.create_or_update_guild(ctx.guild_id, mosque_id=mosque_id)
-        await ctx.respond(f"✅ Updated mosque ID to {mosque_id}", ephemeral=True)
+    async def set_mosque(
+        self, 
+        interaction: discord.Interaction, 
+        mosque_id: str = SlashOption(description="Mosque ID")
+    ):
+        await db.create_or_update_guild(interaction.guild_id, mosque_id=mosque_id)
+        await interaction.response.send_message(f"✅ Updated mosque ID to {mosque_id}", ephemeral=True)
 
-    @admin.command(name="set_followup_channel", description="Set follow-up reports channel")
+    @admin.subcommand(name="set_followup_channel", description="Set follow-up reports channel")
     @admin_or_specific_user()
-    @option("channel", description="Channel for follow-up reports", type=discord.TextChannel)
-    async def set_followup_channel(self, ctx: discord.ApplicationContext, channel: discord.TextChannel):
-        await db.create_or_update_guild(ctx.guild_id, followup_channel_id=channel.id)
-        await ctx.respond(f"✅ Updated follow-up channel to {channel.mention}", ephemeral=True)
+    async def set_followup_channel(
+        self, 
+        interaction: discord.Interaction, 
+        channel: discord.TextChannel = SlashOption(description="Channel for follow-up reports")
+    ):
+        await db.create_or_update_guild(interaction.guild_id, followup_channel_id=channel.id)
+        await interaction.response.send_message(f"✅ Updated follow-up channel to {channel.mention}", ephemeral=True)
 
-    @admin.command(name="toggle_followup_on_completion", description="Toggle instant follow-up on completion")
+    @admin.subcommand(name="toggle_followup_on_completion", description="Toggle instant follow-up on completion")
     @admin_or_specific_user()
-    async def toggle_followup_on_completion(self, ctx: discord.ApplicationContext):
-        guild_config = await db.get_guild_config(ctx.guild_id)
+    async def toggle_followup_on_completion(self, interaction: discord.Interaction):
+        guild_config = await db.get_guild_config(interaction.guild_id)
         if not guild_config:
-            await ctx.respond("Please run `/admin setup` first!", ephemeral=True)
+            await interaction.response.send_message("Please run `/admin setup` first!", ephemeral=True)
             return
         new_value = not guild_config['followup_on_completion']
-        await db.create_or_update_guild(ctx.guild_id, followup_on_completion=1 if new_value else 0)
+        await db.create_or_update_guild(interaction.guild_id, followup_on_completion=1 if new_value else 0)
         status = "enabled" if new_value else "disabled"
-        await ctx.respond(f"✅ Follow-up on completion {status}", ephemeral=True)
+        await interaction.response.send_message(f"✅ Follow-up on completion {status}", ephemeral=True)
 
-    @admin.command(name="set_role", description="Set the Wird role")
+    @admin.subcommand(name="set_role", description="Set the Wird role")
     @admin_or_specific_user()
-    async def set_role(self, ctx: discord.ApplicationContext, role: discord.Role):
-        await db.create_or_update_guild(ctx.guild_id, wird_role_id=role.id)
-        await ctx.respond(f"✅ Set Wird role to {role.mention}", ephemeral=True)
+    async def set_role(
+        self, 
+        interaction: discord.Interaction, 
+        role: discord.Role = SlashOption(description="The Wird role")
+    ):
+        await db.create_or_update_guild(interaction.guild_id, wird_role_id=role.id)
+        await interaction.response.send_message(f"✅ Set Wird role to {role.mention}", ephemeral=True)
 
-    @admin.command(name="toggle_notifications", description="Toggle notification settings")
+    @admin.subcommand(name="toggle_notifications", description="Toggle notification settings")
     @admin_or_specific_user()
-    async def toggle_notifications(self, ctx: discord.ApplicationContext):
-        guild_config = await db.get_guild_config(ctx.guild_id)
+    async def toggle_notifications(self, interaction: discord.Interaction):
+        guild_config = await db.get_guild_config(interaction.guild_id)
         if not guild_config or not guild_config['configured']:
-            await ctx.respond("Please run `/admin setup` first!", ephemeral=True)
+            await interaction.response.send_message("Please run `/admin setup` first!", ephemeral=True)
             return
         
         current_setting = guild_config.get('show_all_notifications', False)
         new_setting = not current_setting
         
-        await db.create_or_update_guild(ctx.guild_id, show_all_notifications=new_setting)
+        await db.create_or_update_guild(interaction.guild_id, show_all_notifications=new_setting)
         
         status = "enabled" if new_setting else "disabled"
         description = (
@@ -256,52 +286,58 @@ class AdminCog(commands.Cog):
             color=discord.Color.green() if new_setting else discord.Color.blue()
         )
         
-        await ctx.respond(embed=embed, ephemeral=True)
+        await interaction.response.send_message(embed=embed, ephemeral=True)
 
-    @admin.command(name="send_now", description="Manually send today's pages")
+    @admin.subcommand(name="send_now", description="Manually send today's pages")
     @admin_or_specific_user()
-    async def send_now(self, ctx: discord.ApplicationContext):
-        await ctx.defer(ephemeral=True)
-        guild_config = await db.get_guild_config(ctx.guild_id)
+    async def send_now(self, interaction: discord.Interaction):
+        await interaction.response.defer(ephemeral=True)
+        guild_config = await db.get_guild_config(interaction.guild_id)
         if not guild_config or not guild_config['configured']:
-            await ctx.respond("Please run `/admin setup` first!", ephemeral=True)
+            await interaction.followup.send("Please run `/admin setup` first!", ephemeral=True)
             return
         current_page = guild_config.get('current_page', None)
         from utils.page_sender import send_daily_pages
-        success = await send_daily_pages(ctx.guild_id, self.bot)
+        success = await send_daily_pages(interaction.guild_id, self.bot)
         page_msg = f"Today's Wird is Quran page {current_page}." if current_page else "Current page not set."
         if success:
-            await ctx.respond(f"✅ Pages sent successfully! {page_msg}", ephemeral=True)
+            await interaction.followup.send(f"✅ Pages sent successfully! {page_msg}", ephemeral=True)
         else:
-            await ctx.respond(f"❌ Failed to send pages. {page_msg}", ephemeral=True)
+            await interaction.followup.send(f"❌ Failed to send pages. {page_msg}", ephemeral=True)
 
-    @admin.command(name="set_page", description="Set the current Quran page")
+    @admin.subcommand(name="set_page", description="Set the current Quran page")
     @admin_or_specific_user()
-    @option("page", description="Current Quran page", min_value=1, max_value=604)
-    async def set_page(self, ctx: discord.ApplicationContext, page: int):
-        await db.create_or_update_guild(ctx.guild_id, current_page=page)
-        await ctx.respond(f"✅ Set current Quran page to {page}", ephemeral=True)
+    async def set_page(
+        self, 
+        interaction: discord.Interaction, 
+        page: int = SlashOption(description="Current Quran page", min_value=1, max_value=604)
+    ):
+        await db.create_or_update_guild(interaction.guild_id, current_page=page)
+        await interaction.response.send_message(f"✅ Set current Quran page to {page}", ephemeral=True)
 
-    @admin.command(name="setstreak", description="Manually set a user's session streak")
+    @admin.subcommand(name="setstreak", description="Manually set a user's session streak")
     @admin_or_specific_user()
-    @option("user", description="The user to set the streak for", type=discord.Member)
-    @option("streak", description="The streak value to set", min_value=0, max_value=1000)
-    async def setstreak(self, ctx: discord.ApplicationContext, user: discord.Member, streak: int):
+    async def setstreak(
+        self, 
+        interaction: discord.Interaction, 
+        user: discord.Member = SlashOption(description="The user to set the streak for"), 
+        streak: int = SlashOption(description="The streak value to set", min_value=0, max_value=1000)
+    ):
         # Ensure user is registered first
-        user_data = await db.get_user(user.id, ctx.guild_id)
+        user_data = await db.get_user(user.id, interaction.guild_id)
         if not user_data:
-            await ctx.respond(f"❌ {user.mention} is not registered! They need to use `/register` first.", ephemeral=True)
+            await interaction.response.send_message(f"❌ {user.mention} is not registered! They need to use `/register` first.", ephemeral=True)
             return
         
-        await db.set_session_streak(user.id, ctx.guild_id, streak)
-        await ctx.respond(
+        await db.set_session_streak(user.id, interaction.guild_id, streak)
+        await interaction.response.send_message(
             f"✅ Set {user.mention}'s session streak to **{streak}**",
             ephemeral=True
         )
 
-    @admin.command(name="cache_stats", description="View cache statistics for translations and tafsir")
+    @admin.subcommand(name="cache_stats", description="View cache statistics for translations and tafsir")
     @admin_or_specific_user()
-    async def cache_stats(self, ctx: discord.ApplicationContext):
+    async def cache_stats(self, interaction: discord.Interaction):
         stats = await db.get_cache_stats()
         
         embed = discord.Embed(
@@ -330,11 +366,11 @@ class AdminCog(commands.Cog):
         
         embed.set_footer(text="Cache helps reduce API calls and improve response times")
         
-        await ctx.respond(embed=embed, ephemeral=True)
+        await interaction.response.send_message(embed=embed, ephemeral=True)
 
-    @admin.command(name="reset_server", description="Reset all server data with confirmation (DANGER!)")
+    @admin.subcommand(name="reset_server", description="Reset all server data with confirmation (DANGER!)")
     @admin_or_specific_user()
-    async def reset_server(self, ctx: discord.ApplicationContext):
+    async def reset_server(self, interaction: discord.Interaction):
         embed = discord.Embed(
             title="⚠️ DANGER: Reset Server Data",
             description="This will **permanently delete** ALL Wird bot data for this server:\n\n"
@@ -349,52 +385,58 @@ class AdminCog(commands.Cog):
         )
         
         from views import ResetConfirmationView
-        view = ResetConfirmationView(ctx.guild_id, self.bot)
-        await ctx.respond(embed=embed, view=view, ephemeral=True)
+        view = ResetConfirmationView(interaction.guild_id, self.bot)
+        await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
 
-    @admin.command(name="set_streak_emoji", description="Set a custom streak emoji for a user (leave empty to reset)")
+    @admin.subcommand(name="set_streak_emoji", description="Set a custom streak emoji for a user (leave empty to reset)")
     @admin_or_specific_user()
-    @option("user", description="The user to set the emoji for", type=discord.Member)
-    @option("emoji", description="The emoji to set", required=False)
-    async def set_streak_emoji(self, ctx: discord.ApplicationContext, user: discord.Member, emoji: str = None):
+    async def set_streak_emoji(
+        self, 
+        interaction: discord.Interaction, 
+        user: discord.Member = SlashOption(description="The user to set the emoji for"), 
+        emoji: str = SlashOption(description="The emoji to set", required=False, default=None)
+    ):
         # Ensure user is registered first
-        user_data = await db.get_user(user.id, ctx.guild_id)
+        user_data = await db.get_user(user.id, interaction.guild_id)
         if not user_data:
-            await ctx.respond(f"❌ {user.mention} is not registered! They need to use `/register` first.", ephemeral=True)
+            await interaction.response.send_message(f"❌ {user.mention} is not registered! They need to use `/register` first.", ephemeral=True)
             return
 
         # Default to None (NULL in DB) if empty, which falls back to fire in code
-        await db.set_user_streak_emoji(user.id, ctx.guild_id, emoji)
+        await db.set_user_streak_emoji(user.id, interaction.guild_id, emoji)
         
         display_emoji = emoji or "🔥 (Default)"
-        await ctx.respond(
+        await interaction.response.send_message(
             f"✅ Set {user.mention}'s streaks emoji to {display_emoji}",
             ephemeral=True
         )
 
-    @admin.command(name="refresh_summary", description="Refresh a specific summary message")
+    @admin.subcommand(name="refresh_summary", description="Refresh a specific summary message")
     @admin_or_specific_user()
-    @option("message_id", description="ID of the summary message to refresh")
-    async def refresh_summary(self, ctx: discord.ApplicationContext, message_id: str):
+    async def refresh_summary(
+        self, 
+        interaction: discord.Interaction, 
+        message_id: str = SlashOption(description="ID of the summary message to refresh")
+    ):
         try:
             msg_id = int(message_id)
         except ValueError:
-            await ctx.respond("❌ Invalid message ID provided.", ephemeral=True)
+            await interaction.response.send_message("❌ Invalid message ID provided.", ephemeral=True)
             return
             
-        session = await db.get_session_by_summary_message_id(ctx.guild_id, msg_id)
+        session = await db.get_session_by_summary_message_id(interaction.guild_id, msg_id)
         
         if not session:
-            await ctx.respond("❌ No session found linked to this message ID.", ephemeral=True)
+            await interaction.response.send_message("❌ No session found linked to this message ID.", ephemeral=True)
             return
 
         from utils.followup import send_followup_message
-        await ctx.defer(ephemeral=True)
+        await interaction.response.defer(ephemeral=True)
         try:
-            await send_followup_message(ctx.guild_id, self.bot, session_id=session['id'])
-            await ctx.respond(f"✅ Summary refreshed for session {session['session_date']}!", ephemeral=True)
+            await send_followup_message(interaction.guild_id, self.bot, session_id=session['id'])
+            await interaction.followup.send(f"✅ Summary refreshed for session {session['session_date']}!", ephemeral=True)
         except Exception as e:
-            await ctx.respond(f"❌ Failed to refresh summary: {e}", ephemeral=True)
+            await interaction.followup.send(f"❌ Failed to refresh summary: {e}", ephemeral=True)
 
             
 

@@ -4,6 +4,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 API_BASE_URL = os.getenv("API_BASE_URL", "http://localhost:5000")
 PRAYER_API_BASE_URL = os.getenv("PRAYER_API_BASE_URL", "https://api.mrie.dev/prayertimes")
 

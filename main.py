@@ -1,5 +1,5 @@
-import discord
-from discord.ext import commands
+import nextcord as discord
+from nextcord.ext import commands
 import logging
 from pathlib import Path
 
@@ -16,8 +16,10 @@ intents = discord.Intents.default()
 intents.message_content = True
 intents.members = True
 
+# Nextcord commands.Bot does not support debug_guilds in init like Pycord, but has default_guild_ids
+# We will rely on global registration or sync, or pass guild_ids to slash commands if strictly needed for debug
 debug_guilds = DEBUG_GUILD_IDS if DEBUG_MODE else None
-bot = commands.Bot(intents=intents, debug_guilds=debug_guilds)
+bot = commands.Bot(intents=intents, command_prefix="!", default_guild_ids=debug_guilds)
 
 if DEBUG_MODE:
     logger.info(f"🐛 DEBUG MODE ENABLED - Commands will register instantly to guilds {DEBUG_GUILD_IDS}")
@@ -116,6 +118,7 @@ async def on_guild_join(guild: discord.Guild):
 
 
 def load_extensions():
+    bot.load_extension('onami')
     cogs_dir = Path(__file__).parent / "cogs"
     
     for cog_file in cogs_dir.glob("*.py"):

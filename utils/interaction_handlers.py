@@ -1,4 +1,4 @@
-import discord
+import nextcord as discord
 from database import db
 from utils.tafsir import fetch_page_tafsir, format_tafsir, TAFSIR_EDITIONS
 from utils.translation import fetch_page_translations, format_translations

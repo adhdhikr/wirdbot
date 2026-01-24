@@ -2,8 +2,8 @@
 
 def setup(bot):
     pass
-import discord
-from discord.ui import View, Button, Select
+import nextcord as discord
+from nextcord.ui import View, Button, Select
 from database import Database
 from typing import List, Dict, Any
 
@@ -229,6 +229,7 @@ class AddScheduleTypeView(View):
         """Show custom time modal"""
         from views import ScheduleTimeModal
         modal = ScheduleTimeModal(self.guild_id)
+        # In nextcord, send_modal expects a Modal object
         await interaction.response.send_modal(modal)
 
     async def back(self, interaction: discord.Interaction):
