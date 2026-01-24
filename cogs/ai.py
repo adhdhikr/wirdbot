@@ -720,46 +720,53 @@ class AICog(commands.Cog):
          """Process a single response from Gemini (Tool Call vs Text)"""
          try:
             # Debug Logging
+            # Debug Inspection
+            has_candidates = False
             try:
-                if response.candidates and len(response.candidates) > 0:
-                    finish_reason = response.candidates[0].finish_reason
-                    logger.info(f"Gemini Finish Reason: {finish_reason}")
-                    if response.candidates[0].content:
-                         logger.debug(f"Raw Content: {response.candidates[0].content}")
-            except Exception as log_e:
-                logger.warning(f"Failed to log debug info: {log_e}")
-            
-            try:
-                if response.candidates and len(response.candidates) > 0:
-                     # Check if content is blocked
-                     if response.candidates[0].finish_reason != 1: # 1 = STOP
-                          logger.warning(f"Gemini Finish Reason: {response.candidates[0].finish_reason}")
-                
-            except Exception:
-                pass
-            
-            # Check for safety blocks or empty responses
-            if not response.candidates:
-                 if response.prompt_feedback:
+                if hasattr(response, 'candidates'):
+                    has_candidates = len(response.candidates) > 0
+                    if has_candidates:
+                        fn_reason = response.candidates[0].finish_reason
+                        # logger.info(f"Gemini Finish Reason: {fn_reason}")
+            except Exception as e:
+                logger.warning(f"Failed to inspect response candidates: {e}")
+
+            if not has_candidates:
+                if hasattr(response, 'prompt_feedback'):
                       logger.warning(f"Prompt Feedback: {response.prompt_feedback}")
-                      return "⚠️ Error: AI response was blocked by safety filters."
-                 return "⚠️ Error: AI response was empty (No candidates)."
-                 
-            # Helper to safely get parts - newer SDKs sometimes have issues iterating parts if empty
-            if not hasattr(response.candidates[0].content, 'parts') or not response.candidates[0].content.parts:
-                 return "⚠️ Error: AI response had no content parts."
+                return "⚠️ Error: AI response was empty (No candidates)."
 
+            # Safe Parts Access
+            parts = []
+            try:
+                candidate = response.candidates[0]
+                if hasattr(candidate.content, 'parts'):
+                    parts = candidate.content.parts
+                else:
+                    logger.warning("Candidate has no content.parts")
+            except Exception as e:
+                logger.error(f"Error accessing parts: {e}")
+                return f"⚠️ Error processing AI response: {e}"
 
-            tool_responses = [] # Buffer for all tool results
+            tool_responses = [] 
             sent_message = existing_message
             accumulated_text = ""
             
             # 1. Iterate through all parts
-            for part in response.parts:
-                if part.text:
-                    accumulated_text += part.text
+            for i, part in enumerate(parts):
+                try:
+                    text_val = part.text
+                    if text_val:
+                        accumulated_text += text_val
+                except Exception:
+                    pass # Maybe no text
 
-                if part.function_call:
+                try:
+                    fn = part.function_call
+                except Exception:
+                    fn = None
+                
+                if fn:
                     # If we have accumulated text before this tool call, send it now
                     if accumulated_text.strip():
                         if sent_message:
@@ -772,10 +779,9 @@ class AICog(commands.Cog):
                             sent_message = await message.reply(accumulated_text)
                         accumulated_text = ""
 
-                    fn = part.function_call
                     fname = fn.name
                     fargs = dict(fn.args)
-                    logger.info(f"AI Calling Tool: {fname} with {fargs}")
+                    logger.info(f"AI Calling Tool: {fname}") # Log minimal to avoid huge spam
                     
                     # Update UI for this tool (append status)
                     status_line = f"\n-# 🛠️ Calling `{fname}`..."
