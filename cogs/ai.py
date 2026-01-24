@@ -161,7 +161,42 @@ class CodeApprovalView(discord.ui.View):
             logger.error(f"Error resuming chat after refusal: {e}")
 
 
-# --- Tool Wrappers ---
+class ContinueExecutionView(discord.ui.View):
+    def __init__(self, ctx, cog, chat_session, response, message, existing_message):
+        super().__init__(timeout=120)
+        self.ctx = ctx
+        self.cog = cog
+        self.chat_session = chat_session
+        self.response = response
+        self.message = message
+        self.existing_message = existing_message
+
+    async def interaction_check(self, interaction: discord.Interaction) -> bool:
+        if interaction.user.id == self.ctx.author.id:
+            return True
+        if await self.cog.bot.is_owner(interaction.user):
+            return True
+        await interaction.response.send_message("❌ You cannot control this.", ephemeral=True)
+        return False
+
+    @discord.ui.button(label="Continue", style=discord.ButtonStyle.success, emoji="▶️")
+    async def continue_running(self, button: discord.ui.Button, interaction: discord.Interaction):
+        await interaction.response.edit_message(content="🔄 **Continuing execution...**", view=None)
+        # Reset tool_count to 0 to give a fresh batch of allowance
+        # We pass interaction.message (the one we just edited) as existing_message 
+        # so the bot updates it instead of creating new ones.
+        await self.cog._process_chat_response(
+            self.chat_session, 
+            self.response, 
+            self.message, 
+            existing_message=interaction.message, 
+            tool_count=0
+        )
+
+    @discord.ui.button(label="Stop", style=discord.ButtonStyle.danger, emoji="🛑")
+    async def stop_running(self, button: discord.ui.Button, interaction: discord.Interaction):
+        await interaction.response.edit_message(content="🛑 **Execution Stopped (User Request).**", view=None)
+        self.stop()
 
 async def lookup_quran_page(page_number: int):
     """
@@ -866,11 +901,15 @@ class AICog(commands.Cog):
          try:
             # Recursion Limit Check
             if tool_count >= MAX_TOOL_CALLS:
-                err_msg = f"⚠️ **Tool Limit Reached** ({MAX_TOOL_CALLS}). Stopping execution to prevent loops."
+                # Ask user to continue
+                ctx = await self.bot.get_context(message)
+                view = ContinueExecutionView(ctx, self, chat_session, response, message, existing_message)
+                msg_txt = "Looks like I've been running for a long time, do you want to keep running?"
+                
                 if existing_message:
-                     await existing_message.reply(err_msg)
+                     await existing_message.reply(msg_txt, view=view)
                 else:
-                     await message.reply(err_msg)
+                     await message.reply(msg_txt, view=view)
                 return None
 
             # Debug Logging
@@ -1108,11 +1147,28 @@ class AICog(commands.Cog):
                     elif fname == '_search_quran_safe' or fname == 'search_quran':
                         tool_result = await _search_quran_safe(**fargs)
                     elif fname == 'read_file':
-                        tool_result = await read_file(**fargs)
+                        is_owner = await self.bot.is_owner(message.author)
+                        is_admin = message.author.guild_permissions.administrator if message.guild else False
+                        if not (is_owner or is_admin):
+                             tool_result = "❌ Error: You do not have permission to read files."
+                        else:
+                             tool_result = await read_file(**fargs)
+
                     elif fname == 'search_codebase':
-                        tool_result = await search_codebase(**fargs)
+                        is_owner = await self.bot.is_owner(message.author)
+                        is_admin = message.author.guild_permissions.administrator if message.guild else False
+                        if not (is_owner or is_admin):
+                             tool_result = "❌ Error: You do not have permission to search codebase."
+                        else:
+                             tool_result = await search_codebase(**fargs)
+
                     elif fname == 'get_db_schema':
-                        tool_result = await get_db_schema()
+                        is_owner = await self.bot.is_owner(message.author)
+                        is_admin = message.author.guild_permissions.administrator if message.guild else False
+                        if not (is_owner or is_admin):
+                             tool_result = "❌ Error: You do not have permission to view DB schema."
+                        else:
+                             tool_result = await get_db_schema()
 
                     elif fname == 'execute_sql':
                         query = fargs.get('query', '').strip()
