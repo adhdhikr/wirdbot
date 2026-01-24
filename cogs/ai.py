@@ -38,7 +38,9 @@ class AICog(commands.Cog):
                 get_page,
                 search_quran,
                 read_file,
-                search_codebase
+                search_codebase,
+                get_db_schema,
+                execute_sql
             ]
             
             self.model = genai.GenerativeModel(
@@ -254,6 +256,17 @@ async def show_quran_page(page_number: int):
     # Placeholder: Actual upload handled in _process_chat_turn using internal logic
     return "Image uploaded."
 
+async def execute_sql(query: str):
+    """
+    Execute a read-only SQL query (SELECT) immediately.
+    Use this to inspect data without waiting for approval.
+    
+    Args:
+        query: The SQL SELECT statement.
+    """
+    # Placeholder: Handled in _process_chat_response (requires message context)
+    return "SQL_EXEC_PLACEHOLDER"
+
 async def execute_python(code: str):
     """
     Propose Python code to execute. Use this for calculations, checking server stats, or automation.
@@ -367,6 +380,29 @@ async def read_file(filename: str, start_line: int = 1, end_line: int = 100):
         return result
     except Exception as e:
         return f"Error reading file: {e}"
+
+async def get_db_schema():
+    """
+    Get the current database schema (CREATE TABLE statements).
+    Use this to understand table names, columns, and relationships.
+    """
+    try:
+        from database import db
+        # Query sqlite_master for table definitions
+        tables = await db.connection.execute_many("SELECT name, sql FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%';")
+        
+        if not tables:
+            return "No tables found in the database."
+            
+        result = "## Database Schema\n"
+        for row in tables:
+            name = row['name']
+            sql = row['sql']
+            result += f"### Table: {name}\n```sql\n{sql}\n```\n"
+            
+        return result
+    except Exception as e:
+        return f"Error fetching schema: {e}"
 
 # --- User Tools ---
 
@@ -580,6 +616,10 @@ If a Quran or Tafsir tool returns text:
 
 * Server action → use tools
 * Code required → `execute_python`
+* Server action → use tools
+* Code required → `execute_python`
+* DB Structure → `get_db_schema`
+* DB Data Inspection → `execute_sql` (READ ONLY)
 * DB/Code Query → `search_codebase` then `read_file`
 * Quran/Tafsir → Quran tools
 * Settings → admin tools
@@ -647,7 +687,11 @@ class AICog(commands.Cog):
                 set_my_streak_emoji,
                 read_file,
                 search_codebase,
-                update_server_config
+                read_file,
+                search_codebase,
+                update_server_config,
+                get_db_schema,
+                execute_sql
             ]
             
             self.model = genai.GenerativeModel(
@@ -873,10 +917,44 @@ class AICog(commands.Cog):
 
                     fname = fn.name
                     fargs = dict(fn.args)
-                    logger.info(f"AI Calling Tool: {fname}") # Log minimal to avoid huge spam
+
+                    # Build context string for UI
+                    context_str = ""
+                    if fname == 'read_file':
+                        f = fargs.get('filename')
+                        if f:
+                            context_str = f" (`{f}`"
+                            if 'start_line' in fargs:
+                                context_str += f":{fargs.get('start_line')}"
+                                if 'end_line' in fargs:
+                                    context_str += f"-{fargs.get('end_line')}"
+                            context_str += ")"
+                    elif fname == 'search_codebase':
+                        q = fargs.get('query')
+                        if q:
+                            context_str = f" (`{q}`)"
+                    elif fname == 'execute_python':
+                        context_str = " (Code Execution)"
+                    elif fname == 'lookup_quran_page':
+                        p = fargs.get('page_number')
+                        if p: context_str = f" (Page {p})"
+                    elif fname == 'get_ayah':
+                        s = fargs.get('surah')
+                        a = fargs.get('ayah')
+                        if s and a: context_str = f" ({s}:{a})"
+                    elif fname == 'search_quran':
+                        q = fargs.get('query')
+                        if q: context_str = f" (`{q}`)"
+                    elif fname == 'get_db_schema':
+                        context_str = " (Schema)"
+                    elif fname == 'execute_sql':
+                        q = fargs.get('query')
+                        if q: context_str = " (SQL)"
+
+                    logger.info(f"AI Calling Tool: {fname}{context_str}") # Log minimal to avoid huge spam
                     
                     # Update UI for this tool (append status)
-                    status_line = f"\n-# 🛠️ Calling `{fname}`..."
+                    status_line = f"\n-# 🛠️ Calling `{fname}`{context_str}..."
                     if sent_message:
                          try:
                             if len(sent_message.content) + len(status_line) < 2000:
@@ -1009,6 +1087,79 @@ class AICog(commands.Cog):
                         tool_result = await read_file(**fargs)
                     elif fname == 'search_codebase':
                         tool_result = await search_codebase(**fargs)
+                    elif fname == 'get_db_schema':
+                        tool_result = await get_db_schema()
+
+                    elif fname == 'execute_sql':
+                        query = fargs.get('query', '').strip()
+                        
+                        # 1. Permission Check
+                        is_owner = await self.bot.is_owner(message.author)
+                        is_admin = message.author.guild_permissions.administrator if message.guild else False
+                        
+                        if not (is_owner or is_admin):
+                            tool_result = "❌ Error: Only Admins or Bot Owner can run SQL."
+                        
+                        # 2. Safety Check (Read Only)
+                        elif not query.upper().startswith("SELECT"):
+                            tool_result = "❌ Error: Only SELECT queries are allowed."
+                        elif ";" in query:
+                             tool_result = "❌ Error: Multiple statements (;) are not allowed."
+                             
+                        # 3. Scope Check for Admins (Prevents leaking other guilds)
+                        elif is_admin and not is_owner:
+                            if not message.guild:
+                                tool_result = "❌ Error: Admins must run this in a server."
+                            elif str(message.guild.id) not in query:
+                                tool_result = f"❌ Error: Admin Safety Check Failed. You MUST query ONLY for your guild. \nPlease include `WHERE guild_id = {message.guild.id}` (or similar) in your query explicitly."
+                            else:
+                                # Run it
+                                try:
+                                    rows = await db.connection.execute_many(query)
+                                    if not rows:
+                                        tool_result = "No results found."
+                                    else:
+                                        # Limit results
+                                        if len(rows) > 20:
+                                             rows = rows[:20]
+                                             footer = "\n\n... (Truncated to 20 rows)"
+                                        else:
+                                             footer = ""
+                                             
+                                        # Format as Table
+                                        # Assuming rows are dict-like (Row objects)
+                                        if rows:
+                                            # Get headers from first row
+                                            headers = rows[0].keys()
+                                            
+                                            # Simple Markdown Table
+                                            header_row = " | ".join(headers)
+                                            sep_row = " | ".join(["---"] * len(headers))
+                                            
+                                            body_rows = []
+                                            for r in rows:
+                                                body_rows.append(" | ".join(str(r[k]) for k in headers))
+                                            
+                                            tool_result = f"### SQL Result\n\n{header_row}\n{sep_row}\n" + "\n".join(body_rows) + footer
+                                        else:
+                                            tool_result = "Query executed. No rows returned."
+                                except Exception as e:
+                                    tool_result = f"SQL Error: {e}"
+                        else:
+                            # Owner - unrestricted run
+                            try:
+                                rows = await db.connection.execute_many(query)
+                                if not rows:
+                                    tool_result = "No results found."
+                                else:
+                                    res_str = ""
+                                    for r in rows[:15]:
+                                        res_str += str(dict(r)) + "\n"
+                                    if len(rows) > 15: res_str += "... (Truncated)"
+                                    tool_result = f"```\n{res_str}\n```"
+                            except Exception as e:
+                                    tool_result = f"SQL Error: {e}"
+
                     
                     if str(tool_result).startswith("Error") or str(tool_result).startswith("❌"):
                         error_occurred = True
@@ -1020,12 +1171,12 @@ class AICog(commands.Cog):
                     if sent_message:
                          try:
                             current_content = sent_message.content
-                            call_marker = f"\n-# 🛠️ Calling `{fname}`..."
+                            call_marker = f"\n-# 🛠️ Calling `{fname}`{context_str}..."
                             
                             if error_occurred:
-                                new_marker = f"\n-# ❌ Error Calling `{fname}`"
+                                new_marker = f"\n-# ❌ Error Calling `{fname}`{context_str}"
                             else:
-                                new_marker = f"\n-# ✅ Called `{fname}`"
+                                new_marker = f"\n-# ✅ Called `{fname}`{context_str}"
                             
                             # Check for both newline and stripped versions (for first line case)
                             if call_marker in current_content:
