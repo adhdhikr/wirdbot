@@ -13,6 +13,7 @@ from config import GEMINI_API_KEY, API_BASE_URL, VALID_MUSHAF_TYPES
 from utils.tafsir import fetch_tafsir_for_ayah
 from utils.translation import fetch_page_translations
 from utils.quran import get_ayah, get_page, search_quran
+from database import db
 
 # ...
 
@@ -102,14 +103,14 @@ class CodeApprovalView(discord.ui.View):
         # Instead, send a System Message update to the AI so it knows what happened.
         try:
             # Update the message in Discord first
-            # (We might want to edit the original message to show the result too)
-            # Find the message? self.message is the original reply.
+            # We use interaction.message (the bot's message) to display the output
             try:
-                content = self.message.content + f"\n\n**Output:**\n```\n{result[:1900]}\n```"
+                # Append output to the bot's proposal message
+                content = interaction.message.content + f"\n\n**Output:**\n```\n{result[:1900]}\n```"
                 if len(content) > 2000:
-                   await self.message.channel.send(f"**Output:**\n```\n{result[:1900]}\n```")
+                   await interaction.message.channel.send(f"**Output:**\n```\n{result[:1900]}\n```")
                 else:
-                   await self.message.edit(content=content)
+                   await interaction.message.edit(content=content)
             except:
                 pass
 
@@ -248,7 +249,6 @@ async def update_server_config(setting: str, value: str):
 
 # --- System Prompt ---
 SYSTEM_PROMPT = """
-
 ## **SYSTEM PROMPT — Wird**
 
 You are **Wird**.
@@ -614,8 +614,8 @@ class AICog(commands.Cog):
             except Exception as log_e:
                 logger.warning(f"Failed to log debug info: {log_e}")
             
-            if not response.parts:
-                logger.error("Response parts empty. Dump: " + str(response))
+            if not response.candidates or not response.parts:
+                logger.error("Response candidates/parts empty. Dump: " + str(response))
                 # Check if it was blocked
                 if response.prompt_feedback:
                       logger.warning(f"Prompt Feedback: {response.prompt_feedback}")
