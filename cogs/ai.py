@@ -19,35 +19,7 @@ import time
 
 # ...
 
-class AICog(commands.Cog):
-    def __init__(self, bot):
-        self.bot = bot
-        if GEMINI_API_KEY:
-            genai.configure(api_key=GEMINI_API_KEY)
-            
-            # Define tools for the model
-            self.tools = [
-                lookup_quran_page,
-                lookup_tafsir,
-                show_quran_page,
-                execute_python,
-                get_my_stats,
-                set_my_streak_emoji,
-                update_server_config,
-                get_ayah,
-                get_page,
-                search_quran,
-                read_file,
-                search_codebase,
-                get_db_schema,
-                execute_sql
-            ]
-            
-            self.model = genai.GenerativeModel(
-                model_name='gemini-3-flash-preview',
-                tools=self.tools,
-                system_instruction=SYSTEM_PROMPT
-            )
+
 
 
 logger = logging.getLogger(__name__)
@@ -687,11 +659,12 @@ class AICog(commands.Cog):
                 set_my_streak_emoji,
                 read_file,
                 search_codebase,
-                read_file,
-                search_codebase,
                 update_server_config,
                 get_db_schema,
-                execute_sql
+                execute_sql,
+                get_ayah,
+                get_page,
+                search_quran
             ]
             
             self.model = genai.GenerativeModel(
