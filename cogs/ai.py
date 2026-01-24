@@ -225,6 +225,10 @@ async def show_quran_page(page_number: int):
     Args:
         page_number: The page number (1-604).
     """
+    try:
+        page_number = int(float(page_number))
+    except (ValueError, TypeError):
+        return "Invalid page number."
     # Placeholder: Actual upload handled in _process_chat_turn using internal logic
     return "Image uploaded."
 
@@ -316,6 +320,12 @@ async def read_file(filename: str, start_line: int = 1, end_line: int = 100):
         start_line: Start line number (1-indexed). Default 1.
         end_line: End line number (inclusive). Default 100.
     """
+    try:
+        start_line = int(float(start_line))
+        end_line = int(float(end_line))
+    except (ValueError, TypeError):
+        return "Invalid line numbers."
+
     # Security check: only allow reading specific extensions and prevent directory traversal
     allowed_extensions = ('.py', '.md', '.txt', '.json', '.sql')
     
@@ -375,6 +385,47 @@ async def get_db_schema():
         return result
     except Exception as e:
         return f"Error fetching schema: {e}"
+
+async def _get_ayah_safe(surah: int, ayah: int, edition: str = 'quran-uthmani'):
+    """
+    Get a specific Ayah (Verse). Wrapper for type safety.
+    Args:
+        surah: Surah number.
+        ayah: Ayah number.
+        edition: The edition/translation (default 'quran-uthmani').
+    """
+    try:
+        surah = int(float(surah))
+        ayah = int(float(ayah))
+        ref = f"{surah}:{ayah}"
+        return await get_ayah(ref, edition)
+    except (ValueError, TypeError):
+        return "Invalid Surah or Ayah number."
+
+async def _get_page_safe(page: int, edition: str = 'quran-uthmani'):
+    """
+    Get a full Quran page text. Wrapper for type safety.
+    Args:
+        page: Page number (1-604).
+        edition: Edition to retrieve.
+    """
+    try:
+        page = int(float(page))
+        return await get_page(page, edition)
+    except (ValueError, TypeError):
+        return "Invalid page number."
+
+async def _search_quran_safe(keyword: str, surah: str = 'all', edition: str = 'quran-uthmani', language: str = 'en'):
+    """
+    Search the Quran. Wrapper to clean inputs.
+    """
+    if str(surah).lower() != 'all':
+        try:
+           surah = str(int(float(surah)))
+        except:
+           pass # Keep as is if not a number
+           
+    return await search_quran(keyword, surah, edition, language)
 
 # --- User Tools ---
 
@@ -662,9 +713,9 @@ class AICog(commands.Cog):
                 update_server_config,
                 get_db_schema,
                 execute_sql,
-                get_ayah,
-                get_page,
-                search_quran
+                _get_ayah_safe,
+                _get_page_safe,
+                _search_quran_safe
             ]
             
             self.model = genai.GenerativeModel(
@@ -1050,12 +1101,12 @@ class AICog(commands.Cog):
                             tool_result = f"Successfully uploaded image of page {page_num}."
                         else:
                             tool_result = "Failed to fetch/upload image."
-                    elif fname == 'get_ayah':
-                        tool_result = await get_ayah(**fargs)
-                    elif fname == 'get_page':
-                        tool_result = await get_page(**fargs)
-                    elif fname == 'search_quran':
-                        tool_result = await search_quran(**fargs)
+                    elif fname == '_get_ayah_safe' or fname == 'get_ayah':
+                        tool_result = await _get_ayah_safe(**fargs)
+                    elif fname == '_get_page_safe' or fname == 'get_page':
+                        tool_result = await _get_page_safe(**fargs)
+                    elif fname == '_search_quran_safe' or fname == 'search_quran':
+                        tool_result = await _search_quran_safe(**fargs)
                     elif fname == 'read_file':
                         tool_result = await read_file(**fargs)
                     elif fname == 'search_codebase':
