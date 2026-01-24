@@ -827,6 +827,15 @@ class AICog(commands.Cog):
             role = "model" if msg.author.id == self.bot.user.id else "user"
             content = msg.content
             
+            # Add Reply Context
+            if msg.reference:
+                try:
+                    if msg.reference.resolved and isinstance(msg.reference.resolved, discord.Message):
+                        ref_author = msg.reference.resolved.author.display_name
+                        content = f"[Replying to {ref_author}] {content}"
+                except:
+                    pass
+
             if role == "user":
                 # "User DisplayName (ID): Content"
                 text = f"User {msg.author.display_name} ({msg.author.id}): {content}"
