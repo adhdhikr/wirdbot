@@ -14,3 +14,17 @@ DEBUG_GUILD_IDS = [int(gid.strip()) for gid in os.getenv("DEBUG_GUILD_IDS", "").
 MAX_PAGES = 604
 MIN_PAGES_PER_DAY = 1
 MAX_PAGES_PER_DAY = 20
+
+VALID_MUSHAF_TYPES = [
+    "kfgqpc-warsh",
+    "ayat-warsh",
+    "kfgqpc-hafs-wasat",
+    "easyquran-hafs-tajweed",
+    "ayat-hafs",
+    "ayat-tajweed"
+]
+
+OWNER_IDS = {
+    1335834424696377434,
+    1030575337869955102
+}

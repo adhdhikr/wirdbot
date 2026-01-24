@@ -3,7 +3,7 @@ from nextcord.ext import commands
 import logging
 from pathlib import Path
 
-from config import DISCORD_TOKEN, DEBUG_MODE, DEBUG_GUILD_IDS
+from config import DISCORD_TOKEN, DEBUG_MODE, DEBUG_GUILD_IDS, OWNER_IDS
 from database import db
 
 logging.basicConfig(
@@ -16,10 +16,9 @@ intents = discord.Intents.default()
 intents.message_content = True
 intents.members = True
 
-# Nextcord commands.Bot does not support debug_guilds in init like Pycord, but has default_guild_ids
+# Nextcord commands.Bot does not support debug_guilds in init like Pycord
 # We will rely on global registration or sync, or pass guild_ids to slash commands if strictly needed for debug
-debug_guilds = DEBUG_GUILD_IDS if DEBUG_MODE else None
-bot = commands.Bot(intents=intents, command_prefix="!", default_guild_ids=debug_guilds)
+bot = commands.Bot(intents=intents, command_prefix="!", owner_ids=OWNER_IDS)
 
 if DEBUG_MODE:
     logger.info(f"🐛 DEBUG MODE ENABLED - Commands will register instantly to guilds {DEBUG_GUILD_IDS}")
