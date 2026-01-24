@@ -13,6 +13,7 @@ from config import GEMINI_API_KEY, API_BASE_URL, VALID_MUSHAF_TYPES
 from utils.tafsir import fetch_tafsir_for_ayah
 from utils.translation import fetch_page_translations
 from utils.quran import get_ayah, get_page, search_quran
+import os
 from database import db
 
 # ...
@@ -34,11 +35,13 @@ class AICog(commands.Cog):
                 update_server_config,
                 get_ayah,
                 get_page,
-                search_quran
+                search_quran,
+                read_file,
+                search_codebase
             ]
             
             self.model = genai.GenerativeModel(
-                model_name='gemini-2.0-flash-exp',
+                model_name='gemini-2.5-flash',
                 tools=self.tools,
                 system_instruction=SYSTEM_PROMPT
             )
@@ -219,6 +222,110 @@ async def execute_python(code: str):
     """
     return "Code proposed. Waiting for user approval."
 
+async def search_codebase(query: str, is_regex: bool = False):
+    """
+    Search for a text pattern in the codebase.
+    Returns file paths and line numbers where the pattern is found.
+    
+    Args:
+        query: The string or regex pattern to search for.
+        is_regex: If True, treats query as regex. Default False.
+    """
+    import re
+    
+    base_path = os.getcwd()
+    allowed_extensions = ('.py', '.md', '.txt', '.json', '.sql')
+    results = []
+    
+    try:
+        if is_regex:
+             pattern = re.compile(query, re.IGNORECASE)
+    except re.error as e:
+        return f"Invalid Regex: {e}"
+
+    count = 0
+    MAX_RESULTS = 50
+
+    for root, dirs, files in os.walk(base_path):
+        # Skip common junk directories
+        if any(x in root for x in ['.git', '__pycache__', 'venv', 'node_modules', '.gemini']):
+             continue
+            
+        for file in files:
+            if not file.endswith(allowed_extensions): continue
+            if file == '.env': continue
+            
+            full_path = os.path.join(root, file)
+            rel_path = os.path.relpath(full_path, base_path)
+            
+            try:
+                with open(full_path, 'r', encoding='utf-8', errors='ignore') as f:
+                    lines = f.readlines()
+                    
+                for i, line in enumerate(lines, 1):
+                    match = False
+                    if is_regex:
+                        if pattern.search(line): match = True
+                    else:
+                        if query.lower() in line.lower(): match = True
+                    
+                    if match:
+                        results.append(f"{rel_path}:{i}: {line.strip()[:200]}")
+                        count += 1
+                        if count >= MAX_RESULTS:
+                             return "\n".join(results) + "\n... (More results truncated, refine search)"
+            except Exception:
+                continue
+                
+    return "\n".join(results) if results else "No matches found."
+
+async def read_file(filename: str, start_line: int = 1, end_line: int = 100):
+    """
+    Read a file from the bot's codebase. 
+    Reads first 100 lines by default. Specify lines to read more.
+    
+    Args:
+        filename: Relative path to the file.
+        start_line: Start line number (1-indexed). Default 1.
+        end_line: End line number (inclusive). Default 100.
+    """
+    # Security check: only allow reading specific extensions and prevent directory traversal
+    allowed_extensions = ('.py', '.md', '.txt', '.json', '.sql')
+    
+    # Normalize path
+    base_path = os.getcwd() # Should be bot root
+    full_path = os.path.normpath(os.path.join(base_path, filename))
+    
+    if not full_path.startswith(base_path):
+        return "Error: Cannot access files outside the bot directory."
+        
+    if not filename.endswith(allowed_extensions) or '.env' in filename:
+         return "Error: File type not allowed or restricted."
+
+    try:
+        if not os.path.exists(full_path):
+             return f"Error: File '{filename}' not found."
+             
+        with open(full_path, 'r', encoding='utf-8') as f:
+            lines = f.readlines()
+            
+        total_lines = len(lines)
+        if start_line < 1: start_line = 1
+        if end_line > total_lines: end_line = total_lines
+        
+        # Adjust for 0-index slicing
+        selected_lines = lines[start_line-1:end_line]
+        content = "".join(selected_lines)
+        
+        result = f"File: {filename} (Lines {start_line}-{end_line} of {total_lines})\n\n{content}"
+        
+        if end_line < total_lines:
+            result += f"\n... (Total {total_lines} lines. Read more with read_file(filename, start_line={end_line+1}, end_line={min(end_line+100, total_lines)}))"
+            
+        return result
+    except Exception as e:
+        return f"Error reading file: {e}"
+
 # --- User Tools ---
 
 async def get_my_stats(user_id: str): # Gemini passes string usually
@@ -295,7 +402,6 @@ Even if metadata exists internally, **it must never appear in your reply**.
 You are a **general Discord assistant**, not only a Quran bot.
 
 This includes:
-
 * Managing channels, roles, permissions
 * Reading or updating server configuration
 * Checking stats, settings, or database values
@@ -347,6 +453,13 @@ If the tool errors or refuses:
   * `db`
   * `utils.quran`, `utils.tafsir`, `utils.translation`, `utils.page_sender`
 * You are sandboxed to the **current server only**.
+* **Database Access**: You have direct access to `db` in `execute_python`.
+  * Use `dir(db)` or `help(db)` to see available methods if you are unsure.
+  * Common: `await db.get_user(user_id, guild_id)`, `await db.get_guild_config(guild_id)`.
+* **Codebase Access**: 
+  * Use `search_codebase` to find functions, classes, or usage patterns.
+  * Use `read_file` to inspect files (e.g., `database.py`) if you need to know classes/methods.
+  * `read_file` is paginated; request specific lines if files are large.
 
 ---
 
@@ -461,6 +574,8 @@ class AICog(commands.Cog):
                 execute_python,
                 get_my_stats,
                 set_my_streak_emoji,
+                read_file,
+                search_codebase,
                 update_server_config
             ]
             
@@ -614,12 +729,26 @@ class AICog(commands.Cog):
             except Exception as log_e:
                 logger.warning(f"Failed to log debug info: {log_e}")
             
-            if not response.candidates or not response.parts:
-                logger.error("Response candidates/parts empty. Dump: " + str(response))
-                # Check if it was blocked
-                if response.prompt_feedback:
+            try:
+                if response.candidates and len(response.candidates) > 0:
+                     # Check if content is blocked
+                     if response.candidates[0].finish_reason != 1: # 1 = STOP
+                          logger.warning(f"Gemini Finish Reason: {response.candidates[0].finish_reason}")
+                
+            except Exception:
+                pass
+            
+            # Check for safety blocks or empty responses
+            if not response.candidates:
+                 if response.prompt_feedback:
                       logger.warning(f"Prompt Feedback: {response.prompt_feedback}")
-                return "⚠️ Error: AI response was empty."
+                      return "⚠️ Error: AI response was blocked by safety filters."
+                 return "⚠️ Error: AI response was empty (No candidates)."
+                 
+            # Helper to safely get parts - newer SDKs sometimes have issues iterating parts if empty
+            if not hasattr(response.candidates[0].content, 'parts') or not response.candidates[0].content.parts:
+                 return "⚠️ Error: AI response had no content parts."
+
 
             tool_responses = [] # Buffer for all tool results
             sent_message = existing_message
@@ -785,11 +914,15 @@ class AICog(commands.Cog):
                         tool_result = await get_page(**fargs)
                     elif fname == 'search_quran':
                         tool_result = await search_quran(**fargs)
+                    elif fname == 'read_file':
+                        tool_result = await read_file(**fargs)
+                    elif fname == 'search_codebase':
+                        tool_result = await search_codebase(**fargs)
                     
                     if str(tool_result).startswith("Error") or str(tool_result).startswith("❌"):
                         error_occurred = True
 
-                    logger.info(f"Tool {fname} executed. Result: {str(tool_result)[:100]}...")
+                    logger.info(f"Tool {fname} executed. Result length: {len(str(tool_result))}")
                     
                     # Update UI Status
                     if sent_message:
