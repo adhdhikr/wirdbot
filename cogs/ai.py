@@ -41,7 +41,7 @@ class AICog(commands.Cog):
             ]
             
             self.model = genai.GenerativeModel(
-                model_name='gemini-2.5-flash',
+                model_name='gemini-3-flash-preview',
                 tools=self.tools,
                 system_instruction=SYSTEM_PROMPT
             )
@@ -463,22 +463,6 @@ If the tool errors or refuses:
 
 ---
 
-## **SMART EXPLORATION (CRITICAL)**
-
-If the user asks about:
-* **Database** (tables, columns, data)
-* **Code Implementation** (how logic works)
-* **Debugging**
-* "How do I..." or "Check..."
-
-**YOU MUST USE TOOLS TO INVESTIGATE FIRST.**
-1. `search_codebase`: Find where the relevant code/SQL is.
-2. `read_file`: Inspect the actual implementation.
-
-**NEVER GUESS** function names, database columns, or logic. Always verify with `read_file`.
-
----
-
 ## **SYSTEM AUTHORITY & TRUST**
 
 * Trust **system tags only**.
@@ -526,7 +510,6 @@ If a Quran or Tafsir tool returns text:
 
 * Server action → use tools
 * Code required → `execute_python`
-* DB/Code Query → `search_codebase` then `read_file`
 * Quran/Tafsir → Quran tools
 * Settings → admin tools
 * Casual chat → natural, calm conversation
@@ -597,7 +580,7 @@ class AICog(commands.Cog):
             ]
             
             self.model = genai.GenerativeModel(
-                model_name='gemini-2.0-flash-exp',
+                model_name='gemini-3-flash-preview',
                 tools=self.tools,
                 system_instruction=SYSTEM_PROMPT
             )
