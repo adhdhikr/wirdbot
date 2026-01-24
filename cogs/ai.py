@@ -53,13 +53,14 @@ logger = logging.getLogger(__name__)
 # --- View for Code Approval ---
 
 class CodeApprovalView(discord.ui.View):
-    def __init__(self, ctx, code: str, cog, chat_session, message: discord.Message):
+    def __init__(self, ctx, code: str, cog, chat_session, message: discord.Message, other_tool_parts: list = None):
         super().__init__(timeout=300)
         self.ctx = ctx
         self.code = code
         self.cog = cog
         self.chat_session = chat_session
         self.message = message
+        self.other_tool_parts = other_tool_parts or []
         self.value = None
 
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
@@ -91,8 +92,6 @@ class CodeApprovalView(discord.ui.View):
         # Initial View Update - Capture the message object
         updated_message = await interaction.response.edit_message(view=self)
         if not updated_message:
-             # Sometimes edit_message via interaction returns None or weird types depending on lib version, 
-             # fallback to interaction.message (which should be valid)
              updated_message = interaction.message
 
         
@@ -114,11 +113,9 @@ class CodeApprovalView(discord.ui.View):
             '_get': discord.utils.get
         })
 
-        # Do NOT send a tool result (FunctionResponse) because the tool call "finished" when we returned "Proposal sent".
-        # Instead, send a System Message update to the AI so it knows what happened.
+        # Send FunctionResponse to resume session
         try:
             # Update the message in Discord first
-            # We use interaction.message (the bot's message) to display the output
             try:
                 # Handle large output
                 if len(result) > 1900:
@@ -139,12 +136,23 @@ class CodeApprovalView(discord.ui.View):
                 logger.error(f"Error displaying output: {e}")
                 pass
 
-            response = await self.chat_session.send_message_async(
-                f"[System] User approved code execution. Result:\n{result}"
+            # Construct the response part for this execution
+            exec_part = genai.protos.Part(
+                function_response=genai.protos.FunctionResponse(
+                    name='execute_python',
+                    response={'result': str(result)}
+                )
             )
             
-            # Process AI reaction to the result
-            # CRITICAL: Pass the existing message so the bot continues updating it instead of starting a new one
+            # Combine with any other pending tool parts
+            all_parts = self.other_tool_parts + [exec_part]
+            
+            # Send to Gemini
+            response = await self.chat_session.send_message_async(
+                genai.protos.Content(parts=all_parts)
+            )
+            
+            # Resume loop (new tool_count=0 as this is a new interaction)
             response_text = await self.cog._process_chat_response(self.chat_session, response, self.message, existing_message=updated_message)
             if response_text:
                 await self.message.reply(response_text)
@@ -160,9 +168,20 @@ class CodeApprovalView(discord.ui.View):
             child.disabled = True
         await interaction.response.edit_message(content="❌ **Execution Cancelled**", view=self)
         
-        # Notify AI of refusal
+        # Notify AI of refusal via FunctionResponse
         try:
-            response = await self.chat_session.send_message_async("[System] User refused code execution.")
+            exec_part = genai.protos.Part(
+                function_response=genai.protos.FunctionResponse(
+                    name='execute_python',
+                    response={'result': "User refused code execution."}
+                )
+            )
+            all_parts = self.other_tool_parts + [exec_part]
+
+            response = await self.chat_session.send_message_async(
+                genai.protos.Content(parts=all_parts)
+            )
+            
             await self.cog._process_chat_response(self.chat_session, response, self.message)
         except Exception as e:
             logger.error(f"Error resuming chat after refusal: {e}")
@@ -819,6 +838,12 @@ class AICog(commands.Cog):
             sent_message = existing_message
             accumulated_text = ""
             
+            # Variables to track execution yielding
+            pending_execution = False
+            pending_execution_code = ""
+            pending_execution_ctx = None
+
+
             # 1. Iterate through all parts
             for i, part in enumerate(parts):
                 try:
@@ -870,24 +895,15 @@ class AICog(commands.Cog):
                     start_time = time.time()
                     
                     if fname == 'execute_python':
+                        # SPECIAL HANDLING: Yield execution
                         is_owner = await self.bot.is_owner(message.author)
                         is_admin = message.author.guild_permissions.administrator if message.guild else False
                         
                         if is_owner or is_admin:
-                             code = fargs.get('code', '')
-                             ctx = await self.bot.get_context(message)
-                             view = CodeApprovalView(ctx, code, self, chat_session, message)
-                             
-                             proposal_text = f"🤖 **Code Proposal**\nReview required:"
-                             if sent_message:
-                                 try:
-                                     sent_message = await sent_message.edit(content=sent_message.content + "\n" + proposal_text, view=view)
-                                 except:
-                                     sent_message = await message.reply(proposal_text, view=view)
-                             else:
-                                 sent_message = await message.reply(proposal_text, view=view)
-                                 
-                             tool_result = "Code proposed. Waiting for user approval."
+                             pending_execution = True
+                             pending_execution_code = fargs.get('code', '')
+                             # Defer the context creation until we break loop
+                             continue # SKIP adding to tool_responses
                         else:
                              tool_result = "Only the Bot Owner or Admins can execute Python code."
 
@@ -1076,7 +1092,26 @@ class AICog(commands.Cog):
                     else:
                         sent_message = await message.reply(accumulated_text)
 
-            # 3. If we executed tools, send ALL results back to Gemini and recurse
+            # Check for PENDING execution
+            if pending_execution:
+                ctx = await self.bot.get_context(message)
+                view = CodeApprovalView(ctx, pending_execution_code, self, chat_session, message, other_tool_parts=tool_responses)
+                
+                proposal_text = f"🤖 **Code Proposal**\nReview required:"
+                if sent_message:
+                    try:
+                        sent_message = await sent_message.edit(content=sent_message.content + "\n" + proposal_text, view=view)
+                    except:
+                        sent_message = await message.reply(proposal_text, view=view)
+                else:
+                    sent_message = await message.reply(proposal_text, view=view)
+                
+                # STOP Execution here. Yield control to user.
+                # We do NOT send tool_responses back to AI yet. CodeApprovalView will handle it.
+                return None 
+
+
+            # 3. If we executed tools (and not pending), send ALL results back to Gemini and recurse
             if tool_responses:
                 logger.info(f"Sending back {len(tool_responses)} tool results. Count: {tool_count}")
                 next_response = await chat_session.send_message_async(
