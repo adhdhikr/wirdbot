@@ -75,14 +75,25 @@ class CodeApprovalView(discord.ui.View):
 
     @discord.ui.button(label="Show Code", style=discord.ButtonStyle.secondary, emoji="👀")
     async def show_code(self, button: discord.ui.Button, interaction: discord.Interaction):
-        await interaction.response.send_message(f"```python\n{self.code}\n```", ephemeral=True)
+        if len(self.code) > 1900:
+            file = discord.File(io.StringIO(self.code), filename="proposed_code.py")
+            await interaction.response.send_message("📄 **Code is too long to display inline.** See attached file.", file=file, ephemeral=True)
+        else:
+            await interaction.response.send_message(f"```python\n{self.code}\n```", ephemeral=True)
 
     @discord.ui.button(label="Approve", style=discord.ButtonStyle.success, emoji="✅")
     async def approve(self, button: discord.ui.Button, interaction: discord.Interaction):
         self.value = True
         for child in self.children:
             child.disabled = True
-        await interaction.response.edit_message(view=self)
+        
+        # Initial View Update - Capture the message object
+        updated_message = await interaction.response.edit_message(view=self)
+        if not updated_message:
+             # Sometimes edit_message via interaction returns None or weird types depending on lib version, 
+             # fallback to interaction.message (which should be valid)
+             updated_message = interaction.message
+
         
         # Execute context
         result = await self.cog._execute_python_internal(self.code, {
@@ -108,13 +119,23 @@ class CodeApprovalView(discord.ui.View):
             # Update the message in Discord first
             # We use interaction.message (the bot's message) to display the output
             try:
-                # Append output to the bot's proposal message
-                content = interaction.message.content + f"\n\n**Output:**\n```\n{result[:1900]}\n```"
-                if len(content) > 2000:
-                   await interaction.message.channel.send(f"**Output:**\n```\n{result[:1900]}\n```")
+                # Handle large output
+                if len(result) > 1900:
+                    file = discord.File(io.StringIO(result), filename="execution_output.txt")
+                    
+                    if len(updated_message.content) + 100 < 2000:
+                         updated_message = await updated_message.edit(content=updated_message.content + "\n\n✅ **Executed.** Output attached.")
+                         await interaction.message.channel.send(content=f"📄 **Output for {updated_message.jump_url}**", file=file)
+                    else:
+                         await interaction.message.channel.send(content="✅ **Executed.** Output attached.", file=file)
                 else:
-                   await interaction.message.edit(content=content)
-            except:
+                    content = updated_message.content + f"\n\n**Output:**\n```\n{result}\n```"
+                    if len(content) > 2000:
+                       await interaction.message.channel.send(f"**Output:**\n```\n{result}\n```")
+                    else:
+                       updated_message = await updated_message.edit(content=content)
+            except Exception as e:
+                logger.error(f"Error displaying output: {e}")
                 pass
 
             response = await self.chat_session.send_message_async(
@@ -122,7 +143,8 @@ class CodeApprovalView(discord.ui.View):
             )
             
             # Process AI reaction to the result
-            response_text = await self.cog._process_chat_response(self.chat_session, response, self.message)
+            # CRITICAL: Pass the existing message so the bot continues updating it instead of starting a new one
+            response_text = await self.cog._process_chat_response(self.chat_session, response, self.message, existing_message=updated_message)
             if response_text:
                 await self.message.reply(response_text)
                 
@@ -425,6 +447,9 @@ If a user asks for **anything that requires logic, automation, inspection, or mo
   * “Would you like me to…”
 * If code is needed to accomplish the task:
   **CALL `execute_python` IMMEDIATELY**
+* **DO NOT** output the code in your text response. Pass it ONLY in the tool arguments.
+  * If the code is long, `execute_python` handles it.
+  * Writing code in the chat causes glitches and errors. **AVOID IT.**
 
 The “review required” button is the proposal mechanism.
 
@@ -788,7 +813,7 @@ class AICog(commands.Cog):
                         if sent_message:
                             formatted_content = sent_message.content + "\n" + accumulated_text
                             if len(formatted_content) < 2000:
-                                await sent_message.edit(content=formatted_content)
+                                sent_message = await sent_message.edit(content=formatted_content)
                             else:
                                     sent_message = await message.reply(accumulated_text)
                         else:
@@ -804,7 +829,7 @@ class AICog(commands.Cog):
                     if sent_message:
                          try:
                             if len(sent_message.content) + len(status_line) < 2000:
-                                await sent_message.edit(content=sent_message.content + status_line)
+                                sent_message = await sent_message.edit(content=sent_message.content + status_line)
                             else:
                                 sent_message = await message.reply(status_line.strip())
                          except:
@@ -828,7 +853,7 @@ class AICog(commands.Cog):
                              proposal_text = f"🤖 **Code Proposal**\nReview required:"
                              if sent_message:
                                  try:
-                                     await sent_message.edit(content=sent_message.content + "\n" + proposal_text, view=view)
+                                     sent_message = await sent_message.edit(content=sent_message.content + "\n" + proposal_text, view=view)
                                  except:
                                      sent_message = await message.reply(proposal_text, view=view)
                              else:
@@ -960,10 +985,10 @@ class AICog(commands.Cog):
                             
                             if call_marker in current_content:
                                 new_content = current_content.replace(call_marker, new_marker)
-                                await sent_message.edit(content=new_content)
+                                sent_message = await sent_message.edit(content=new_content)
                             else:
                                 # Fallback append
-                                await sent_message.edit(content=current_content + " " + ("❌" if error_occurred else "✅"))
+                                sent_message = await sent_message.edit(content=current_content + " " + ("❌" if error_occurred else "✅"))
                          except Exception as e:
                             logger.error(f"Failed to update tool status: {e}")
 
@@ -982,7 +1007,7 @@ class AICog(commands.Cog):
                 if sent_message:
                     formatted_content = sent_message.content + "\n" + accumulated_text
                     if len(formatted_content) < 2000:
-                        await sent_message.edit(content=formatted_content)
+                        sent_message = await sent_message.edit(content=formatted_content)
                     else:
                         if len(accumulated_text) > 2000:
                              chunks = [accumulated_text[i:i+2000] for i in range(0, len(accumulated_text), 2000)]
