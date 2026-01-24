@@ -9,12 +9,13 @@ import contextlib
 import textwrap
 import traceback
 import aiohttp
-from config import GEMINI_API_KEY, API_BASE_URL, VALID_MUSHAF_TYPES
+from config import GEMINI_API_KEY, API_BASE_URL, VALID_MUSHAF_TYPES, TOOL_LOG_CHANNEL_ID, MAX_TOOL_CALLS
 from utils.tafsir import fetch_tafsir_for_ayah
 from utils.translation import fetch_page_translations
 from utils.quran import get_ayah, get_page, search_quran
 import os
 from database import db
+import time
 
 # ...
 
@@ -633,6 +634,15 @@ class AICog(commands.Cog):
     async def _execute_python_internal(self, code: str, ctx_data: dict) -> str:
         """Internal header to execute python code safely."""
         
+        # Cleanup code
+        code = code.strip().strip('`')
+        if code.startswith('python\n'):
+            code = code[7:]
+
+        # Safety Check for asyncio.run
+        if 'asyncio.run' in code:
+             return "Error: You are already in an Async Event Loop. Do NOT use `asyncio.run()`. Use `await` directly on your coroutines. \nExample: `await my_async_function()` instead of `asyncio.run(my_async_function())`."
+
         # Determine the user to check permissions
         author = ctx_data.get('author') or ctx_data.get('_author')
         is_owner = False
@@ -676,10 +686,7 @@ class AICog(commands.Cog):
 
         env.update(ctx_data)
         
-        # Cleanup code
-        code = code.strip().strip('`')
-        if code.startswith('python\n'):
-            code = code[7:]
+        # Code cleaned up above
             
         body = f"async def func():\n{textwrap.indent(code, '  ')}"
         stdout = io.StringIO()
@@ -757,9 +764,18 @@ class AICog(commands.Cog):
              await message.reply(f"❌ Error resuming chat: {e}")
 
 
-    async def _process_chat_response(self, chat_session, response, message: discord.Message, existing_message: discord.Message = None):
+    async def _process_chat_response(self, chat_session, response, message: discord.Message, existing_message: discord.Message = None, tool_count: int = 0):
          """Process a single response from Gemini (Tool Call vs Text)"""
          try:
+            # Recursion Limit Check
+            if tool_count >= MAX_TOOL_CALLS:
+                err_msg = f"⚠️ **Tool Limit Reached** ({MAX_TOOL_CALLS}). Stopping execution to prevent loops."
+                if existing_message:
+                     await existing_message.reply(err_msg)
+                else:
+                     await message.reply(err_msg)
+                return None
+
             # Debug Logging
             # Debug Inspection
             has_candidates = False
@@ -840,6 +856,8 @@ class AICog(commands.Cog):
                     # --- Execute Tool ---
                     tool_result = "Error: Unknown tool"
                     error_occurred = False
+                    
+                    start_time = time.time()
                     
                     if fname == 'execute_python':
                         is_owner = await self.bot.is_owner(message.author)
@@ -970,11 +988,11 @@ class AICog(commands.Cog):
                         error_occurred = True
 
                     logger.info(f"Tool {fname} executed. Result length: {len(str(tool_result))}")
+                    duration = time.time() - start_time
                     
                     # Update UI Status
                     if sent_message:
                          try:
-                            # Replace the "Calling..." line
                             current_content = sent_message.content
                             call_marker = f"\n-# 🛠️ Calling `{fname}`..."
                             
@@ -983,14 +1001,37 @@ class AICog(commands.Cog):
                             else:
                                 new_marker = f"\n-# ✅ Called `{fname}`"
                             
+                            # Check for both newline and stripped versions (for first line case)
                             if call_marker in current_content:
                                 new_content = current_content.replace(call_marker, new_marker)
+                                sent_message = await sent_message.edit(content=new_content)
+                            elif call_marker.strip() in current_content:
+                                # For the very first line which might not have the leading newline
+                                new_content = current_content.replace(call_marker.strip(), new_marker.strip())
                                 sent_message = await sent_message.edit(content=new_content)
                             else:
                                 # Fallback append
                                 sent_message = await sent_message.edit(content=current_content + " " + ("❌" if error_occurred else "✅"))
                          except Exception as e:
                             logger.error(f"Failed to update tool status: {e}")
+
+                    # Admin Logging
+                    if TOOL_LOG_CHANNEL_ID:
+                        try:
+                            log_channel = self.bot.get_channel(TOOL_LOG_CHANNEL_ID)
+                            if log_channel:
+                                embed = discord.Embed(title=f"Tool Execution: {fname}", color=discord.Color.red() if error_occurred else discord.Color.green())
+                                embed.set_author(name=message.author.display_name, icon_url=message.author.display_avatar.url)
+                                embed.add_field(name="User ID", value=message.author.id)
+                                embed.add_field(name="Channel", value=message.channel.mention if hasattr(message.channel, 'mention') else str(message.channel))
+                                embed.add_field(name="Duration", value=f"{duration:.2f}s")
+                                embed.add_field(name="Arguments", value=f"```json\n{str(fargs)[:1000]}\n```", inline=False)
+                                
+                                res_preview = str(tool_result)[:500]
+                                embed.add_field(name="Result", value=f"```\n{res_preview}\n```", inline=False)
+                                await log_channel.send(embed=embed)
+                        except Exception as e:
+                            logger.error(f"Failed to send tool log: {e}")
 
                     # Add to response list
                     tool_responses.append(genai.protos.Part(
@@ -999,6 +1040,8 @@ class AICog(commands.Cog):
                             response={'result': str(tool_result)} 
                         )
                     ))
+                    
+                    tool_count += 1
 
             # 2. Logic After Loop
             
@@ -1025,11 +1068,11 @@ class AICog(commands.Cog):
 
             # 3. If we executed tools, send ALL results back to Gemini and recurse
             if tool_responses:
-                logger.info(f"Sending back {len(tool_responses)} tool results.")
+                logger.info(f"Sending back {len(tool_responses)} tool results. Count: {tool_count}")
                 next_response = await chat_session.send_message_async(
                     genai.protos.Content(parts=tool_responses)
                 )
-                return await self._process_chat_response(chat_session, next_response, message, sent_message)
+                return await self._process_chat_response(chat_session, next_response, message, sent_message, tool_count=tool_count)
 
             return None # Done if no tools called
 
