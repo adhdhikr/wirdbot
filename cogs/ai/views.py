@@ -1,0 +1,179 @@
+import nextcord as discord
+import io
+import logging
+import google.generativeai as genai
+from .tools import _execute_python_internal
+
+logger = logging.getLogger(__name__)
+
+class CodeApprovalView(discord.ui.View):
+    def __init__(self, ctx, code: str, cog, chat_session, message: discord.Message, other_tool_parts: list = None):
+        super().__init__(timeout=300)
+        self.ctx = ctx
+        self.code = code
+        self.cog = cog
+        self.chat_session = chat_session
+        self.message = message
+        self.other_tool_parts = other_tool_parts or []
+        self.value = None
+
+    async def interaction_check(self, interaction: discord.Interaction) -> bool:
+
+        if interaction.user.id == self.ctx.author.id:
+            return True
+            
+
+        if await self.cog.bot.is_owner(interaction.user):
+            return True
+            
+        await interaction.response.send_message("❌ Only the command author or Bot Owner can use this.", ephemeral=True)
+        return False
+
+    @discord.ui.button(label="Show Code", style=discord.ButtonStyle.secondary, emoji="👀")
+    async def show_code(self, button: discord.ui.Button, interaction: discord.Interaction):
+        if len(self.code) > 1900:
+            file = discord.File(io.StringIO(self.code), filename="proposed_code.py")
+            await interaction.response.send_message("📄 **Code is too long to display inline.** See attached file.", file=file, ephemeral=True)
+        else:
+            await interaction.response.send_message(f"```python\n{self.code}\n```", ephemeral=True)
+
+    @discord.ui.button(label="Approve", style=discord.ButtonStyle.success, emoji="✅")
+    async def approve(self, button: discord.ui.Button, interaction: discord.Interaction):
+        self.value = True
+        for child in self.children:
+            child.disabled = True
+        
+
+        updated_message = await interaction.response.edit_message(view=self)
+        if not updated_message:
+             updated_message = interaction.message
+
+        
+
+        result = await _execute_python_internal(self.cog.bot, self.code, {
+            'ctx': self.ctx,
+            'channel': self.ctx.channel,
+            'author': self.ctx.author,
+            'guild': self.ctx.guild,
+            'message': self.ctx.message,
+            '_ctx': self.ctx,
+            '_bot': self.cog.bot, # Will be replaced by ScopedBot inside function if not owner
+            '_author': self.ctx.author,
+            '_channel': self.ctx.channel,
+            '_guild': self.ctx.guild,
+            '_message': self.ctx.message,
+            '_msg': self.ctx.message,
+            '_find': discord.utils.find,
+            '_get': discord.utils.get
+        })
+
+
+        try:
+
+            try:
+
+                if len(result) > 1900:
+                    file = discord.File(io.StringIO(result), filename="execution_output.txt")
+                    
+                    if len(updated_message.content) + 100 < 2000:
+                         updated_message = await updated_message.edit(content=updated_message.content + "\n\n✅ **Executed.** Output attached.")
+                         await interaction.message.channel.send(content=f"📄 **Output for {updated_message.jump_url}**", file=file)
+                    else:
+                         await interaction.message.channel.send(content="✅ **Executed.** Output attached.", file=file)
+                else:
+                    content = updated_message.content + f"\n\n**Output:**\n```\n{result}\n```"
+                    if len(content) > 2000:
+                       await interaction.message.channel.send(f"**Output:**\n```\n{result}\n```")
+                    else:
+                       updated_message = await updated_message.edit(content=content)
+            except Exception as e:
+                logger.error(f"Error displaying output: {e}")
+                pass
+
+
+            exec_part = genai.protos.Part(
+                function_response=genai.protos.FunctionResponse(
+                    name='execute_python',
+                    response={'result': str(result)}
+                )
+            )
+            
+
+            all_parts = self.other_tool_parts + [exec_part]
+            
+
+            response = await self.chat_session.send_message_async(
+                genai.protos.Content(parts=all_parts)
+            )
+            
+
+            response_text = await self.cog._process_chat_response(self.chat_session, response, self.message, existing_message=updated_message)
+            if response_text:
+                await self.message.reply(response_text)
+                
+        except Exception as e:
+             logger.error(f"Error resuming chat after code exec: {e}")
+
+
+    @discord.ui.button(label="Refuse", style=discord.ButtonStyle.danger, emoji="⛔")
+    async def refuse(self, button: discord.ui.Button, interaction: discord.Interaction):
+        self.value = False
+        for child in self.children:
+            child.disabled = True
+        await interaction.response.edit_message(content="❌ **Execution Cancelled**", view=self)
+        
+
+        try:
+            exec_part = genai.protos.Part(
+                function_response=genai.protos.FunctionResponse(
+                    name='execute_python',
+                    response={'result': "User refused code execution."}
+                )
+            )
+            all_parts = self.other_tool_parts + [exec_part]
+
+            response = await self.chat_session.send_message_async(
+                genai.protos.Content(parts=all_parts)
+            )
+            
+            await self.cog._process_chat_response(self.chat_session, response, self.message)
+        except Exception as e:
+            logger.error(f"Error resuming chat after refusal: {e}")
+
+
+class ContinueExecutionView(discord.ui.View):
+    def __init__(self, ctx, cog, chat_session, response, message, existing_message):
+        super().__init__(timeout=120)
+        self.ctx = ctx
+        self.cog = cog
+        self.chat_session = chat_session
+        self.response = response
+        self.message = message
+        self.existing_message = existing_message
+
+    async def interaction_check(self, interaction: discord.Interaction) -> bool:
+        if interaction.user.id == self.ctx.author.id:
+            return True
+        if await self.cog.bot.is_owner(interaction.user):
+            return True
+        await interaction.response.send_message("❌ You cannot control this.", ephemeral=True)
+        return False
+
+    @discord.ui.button(label="Continue", style=discord.ButtonStyle.success, emoji="▶️")
+    async def continue_running(self, button: discord.ui.Button, interaction: discord.Interaction):
+        await interaction.response.edit_message(content="🔄 **Continuing execution...**", view=None)
+
+
+
+        await self.cog._process_chat_response(
+            self.chat_session, 
+            self.response, 
+            self.message, 
+            existing_message=interaction.message, 
+            tool_count=0
+        )
+
+    @discord.ui.button(label="Stop", style=discord.ButtonStyle.danger, emoji="🛑")
+    async def stop_running(self, button: discord.ui.Button, interaction: discord.Interaction):
+        await interaction.response.edit_message(content="🛑 **Execution Stopped (User Request).**", view=None)
+        self.stop()

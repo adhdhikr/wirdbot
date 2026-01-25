@@ -11,6 +11,8 @@ TAFSIR_API_BASE = "https://cdn.jsdelivr.net/gh/spa5k/tafsir_api@main/tafsir"
 TAFSIR_EDITIONS = {
     'en-tafisr-ibn-kathir': 'Tafsir Ibn Kathir (English)',
     'ar-tafsir-ibn-kathir': 'Tafsir Ibn Kathir (العربية)',
+    'en-al-jalalayn': 'Tafsir Al-Jalalayn (English)',
+    'en-tafsir-maarif-ul-quran': 'Maarif-ul-Quran (English)',
 }
 
 async def get_ayahs_for_page(page_number: int) -> List[Dict[str, Any]]:

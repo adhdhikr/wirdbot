@@ -30,7 +30,7 @@ async def send_followup_message(guild_id: int, bot, session_id: int = None):
 
         registered_users = await db.get_registered_users(guild_id)
 
-        # Get the session to update (either specified or current active)
+
         if session_id:
             session = await db.get_session_by_id(session_id)
         else:
@@ -46,12 +46,12 @@ async def send_followup_message(guild_id: int, bot, session_id: int = None):
         not_started = []
         late_completions_list = []
 
-        # Get users who completed THIS session late
+
         late_user_ids = await db.get_late_completions_for_session(session['id'])
 
         for user in registered_users:
             user_id = user['user_id']
-            # Get completions for THIS specific session
+
             user_completions = await db.get_user_completions_for_session(user_id, session['id'])
             member = guild.get_member(user_id)
             if not member:
@@ -62,22 +62,22 @@ async def send_followup_message(guild_id: int, bot, session_id: int = None):
             if count == 0:
                 not_started.append(f"• {member.display_name}")
             elif count >= total_pages:
-                # User completed all pages for this session
-                # Check if they completed it late
+
+
                 if user_id in late_user_ids:
-                    # Completed late - show in late section
+
                     late_completions_list.append(f"• {member.display_name}")
                 else:
-                    # Completed on time - show in completed section
+
                     streak_emoji = user.get('streak_emoji') or "🔥"
                     streak = f" - {user.get('session_streak', 0)}{streak_emoji}" if user.get('session_streak', 0) > 1 else ""
                     completed.append(f"• {member.display_name}{streak}")
             else:
-                # Still in progress (whether late or not)
+
                 in_progress.append(f"• {member.display_name} - {count}/{total_pages} pages")
 
 
-        # Format the session date nicely
+
         session_date = session.get('session_date', today)
         embed = discord.Embed(
             title="📊 Daily Wird Progress",
@@ -85,7 +85,7 @@ async def send_followup_message(guild_id: int, bot, session_id: int = None):
             color=discord.Color.blue()
         )
 
-        # Prioritize: completed first, then in_progress, then late_completions, then not_started, up to 30 total lines
+
         total_limit = 30
         shown_completed = completed[:total_limit]
         remaining = total_limit - len(shown_completed)
@@ -111,7 +111,7 @@ async def send_followup_message(guild_id: int, bot, session_id: int = None):
                 inline=False
             )
 
-        # Add late completions section BEFORE not started
+
         if shown_late_completions:
             embed.add_field(
                 name=f"⏰ Completed Late ({len(late_completions_list)})",
@@ -133,7 +133,7 @@ async def send_followup_message(guild_id: int, bot, session_id: int = None):
             embed.description += "\n\nNo registered users yet!"
 
 
-        # Try to edit the previous summary message if it exists, otherwise send a new one
+
         summary_message_id = session.get('summary_message_id')
         if summary_message_id:
             try:
@@ -143,7 +143,7 @@ async def send_followup_message(guild_id: int, bot, session_id: int = None):
             except Exception as e:
                 logger.warning(f"Could not edit summary message: {e}")
         
-        # If we couldn't edit, send a new summary message and store its ID
+
         new_msg = await channel.send(embed=embed)
         await db.update_session_summary_message_id(session['id'], new_msg.id)
 

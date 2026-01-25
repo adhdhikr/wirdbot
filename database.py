@@ -23,7 +23,7 @@ class Database:
     def __init__(self, db_path: str = "data/wird.db"):
         if self.__class__._initialized:
             return
-        # Ensure the data directory exists
+
         data_dir = os.path.dirname(db_path)
         if data_dir and not os.path.exists(data_dir):
             os.makedirs(data_dir, exist_ok=True)
@@ -150,7 +150,7 @@ class Database:
 
     async def reset_guild_data(self, guild_id: int):
         """Reset all data for a guild (admin command)"""
-        # Delete in reverse order of dependencies
+
         await self.completions.clear_all(guild_id)
         await self.sessions.clear_all(guild_id)
         await self.users.clear_all(guild_id)
@@ -172,7 +172,7 @@ class Database:
     async def set_user_streak_emoji(self, user_id: int, guild_id: int, emoji: str):
         await self.users.set_streak_emoji(user_id, guild_id, emoji)
 
-    # Cache methods
+
     async def get_translation_cache(self, page_number: int, language: str):
         return await self.cache.get_translation_cache(page_number, language)
 
@@ -189,5 +189,5 @@ class Database:
         return await self.cache.get_cache_stats()
 
 
-# Global singleton instance
+
 db = Database()

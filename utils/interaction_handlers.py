@@ -12,10 +12,10 @@ async def handle_tafsir(interaction: discord.Interaction, page_number: int):
     from utils.tafsir import fetch_page_tafsir, format_tafsir, TAFSIR_EDITIONS
     from utils.pagination import paginate_text
 
-    # Get user's tafsir preference
+
     tafsir_edition = await db.get_user_tafsir_preference(interaction.user.id, interaction.guild_id)
 
-    # Fetch tafsir
+
     tafsir_data = await fetch_page_tafsir(page_number, tafsir_edition)
     if tafsir_data is None:
         await interaction.response.send_message("❌ Failed to fetch tafsir. Please try again later.", ephemeral=True)
@@ -24,7 +24,7 @@ async def handle_tafsir(interaction: discord.Interaction, page_number: int):
     formatted_text = await format_tafsir(tafsir_data)
     pages = paginate_text(formatted_text)
 
-    # Create the tafsir view with edition selector and pagination
+
     view = TafsirView(page_number, tafsir_edition, pages, 0, len(tafsir_data))
 
     embed = discord.Embed(
@@ -44,10 +44,10 @@ async def handle_translation(interaction: discord.Interaction, page_number: int)
     from utils.translation import fetch_page_translations, format_translations
     from utils.pagination import paginate_text
 
-    # Get user's language preference
+
     language = await db.get_user_language_preference(interaction.user.id, interaction.guild_id)
 
-    # Fetch translations
+
     translations = await fetch_page_translations(page_number, language)
     if translations is None:
         await interaction.response.send_message("❌ Failed to fetch translations. Please try again later.", ephemeral=True)
@@ -56,7 +56,7 @@ async def handle_translation(interaction: discord.Interaction, page_number: int)
     formatted_text = await format_translations(translations)
     pages = paginate_text(formatted_text)
 
-    # Create the translation view with language selector and pagination
+
     view = TranslationView(page_number, language, pages)
 
     embed = discord.Embed(

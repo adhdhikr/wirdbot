@@ -16,8 +16,8 @@ intents = discord.Intents.default()
 intents.message_content = True
 intents.members = True
 
-# Nextcord commands.Bot does not support debug_guilds in init like Pycord
-# We will rely on global registration or sync, or pass guild_ids to slash commands if strictly needed for debug
+
+
 bot = commands.Bot(intents=intents, command_prefix="!", owner_ids=OWNER_IDS)
 
 if DEBUG_MODE:
@@ -35,7 +35,7 @@ async def on_ready():
 
 @bot.event 
 async def on_interaction(interaction: discord.Interaction):
-    # Handle completion button interactions that aren't handled by registered views
+
     if interaction.type == discord.InteractionType.component:
         custom_id = interaction.data.get('custom_id', '')
         if custom_id.startswith('complete_'):
@@ -67,9 +67,9 @@ async def on_interaction(interaction: discord.Interaction):
                 except (ValueError, IndexError):
                     logger.warning(f"Invalid tafsir button custom_id: {custom_id}")
                     return
-            # Else, not handled here, let it go to normal processing
+
     
-    # Continue with normal processing for other interactions
+
     try:
         await bot.process_application_commands(interaction)
     except Exception as e:
@@ -99,7 +99,7 @@ async def on_guild_join(guild: discord.Guild):
     
     embed.set_footer(text="Run /setup to get started!")
     
-    # Try to send to system channel or first available text channel
+
     target_channel = guild.system_channel
     if not target_channel:
         for channel in guild.text_channels:

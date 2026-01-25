@@ -10,10 +10,10 @@ class CompletionButton(discord.ui.Button):
             label="Mark as Read",
             custom_id=f"complete_{page_number}"
         )
-        # Don't store page_number - we'll parse it from custom_id in callback
+
 
     async def callback(self, interaction: discord.Interaction):
-        # Parse page number from custom_id
+
         custom_id = interaction.data.get('custom_id', '')
         try:
             page_number = int(custom_id.split('_')[1])
@@ -34,7 +34,7 @@ class TranslationButton(discord.ui.Button):
         )
 
     async def callback(self, interaction: discord.Interaction):
-        # Parse page number from custom_id
+
         custom_id = interaction.data.get('custom_id', '')
         try:
             page_number = int(custom_id.split('_')[1])
@@ -55,7 +55,7 @@ class TafsirButton(discord.ui.Button):
         )
 
     async def callback(self, interaction: discord.Interaction):
-        # Parse page number from custom_id
+
         custom_id = interaction.data.get('custom_id', '')
         try:
             page_number = int(custom_id.split('_')[1])
@@ -76,10 +76,10 @@ class TafsirView(discord.ui.View):
         self.current_page = current_page
         self.ayah_count = ayah_count
 
-        # Add tafsir edition select
+
         self.add_item(TafsirSelect(page_number, current_edition))
 
-        # Add pagination buttons if multiple pages
+
         if len(pages) > 1:
             self.add_item(TafsirPrevButton(page_number, current_edition, pages, current_page, ayah_count))
             self.add_item(TafsirNextButton(page_number, current_edition, pages, current_page, ayah_count))
@@ -106,7 +106,7 @@ class TafsirSelect(discord.ui.Select):
         )
 
     async def callback(self, interaction: discord.Interaction):
-        # Parse page number from custom_id
+
         custom_id = interaction.data.get('custom_id', '')
         try:
             page_number = int(custom_id.split('_')[2])
@@ -120,10 +120,10 @@ class TafsirSelect(discord.ui.Select):
         from utils.tafsir import fetch_page_tafsir, format_tafsir
         from utils.pagination import paginate_text
 
-        # Update user's tafsir preference
+
         await db.set_user_tafsir_preference(interaction.user.id, interaction.guild_id, selected_edition)
 
-        # Fetch tafsir in new edition
+
         tafsir_data = await fetch_page_tafsir(page_number, selected_edition)
         if tafsir_data is None:
             await interaction.response.send_message("❌ Failed to fetch tafsir. Please try again later.", ephemeral=True)
@@ -132,7 +132,7 @@ class TafsirSelect(discord.ui.Select):
         formatted_text = await format_tafsir(tafsir_data)
         pages = paginate_text(formatted_text)
 
-        # Update the view with new edition selection
+
         view = TafsirView(page_number, selected_edition, pages, 0, len(tafsir_data))
 
         embed = discord.Embed(
@@ -216,11 +216,11 @@ class TranslationView(discord.ui.View):
         self.pages = pages
         self.current_page = current_page
 
-        # Add language buttons
+
         self.add_item(LanguageButton(page_number, 'eng', 'English', current_language == 'eng'))
         self.add_item(LanguageButton(page_number, 'fra', 'Français', current_language == 'fra'))
 
-        # Add pagination buttons if multiple pages
+
         if len(pages) > 1:
             self.add_item(TranslationPrevButton(page_number, current_language, pages, current_page))
             self.add_item(TranslationNextButton(page_number, current_language, pages, current_page))
@@ -236,7 +236,7 @@ class LanguageButton(discord.ui.Button):
         )
 
     async def callback(self, interaction: discord.Interaction):
-        # Parse language and page number from custom_id
+
         custom_id = interaction.data.get('custom_id', '')
         parts = custom_id.split('_')
         if len(parts) < 3:
@@ -254,10 +254,10 @@ class LanguageButton(discord.ui.Button):
         from utils.translation import fetch_page_translations, format_translations
         from utils.pagination import paginate_text
 
-        # Update user's language preference
+
         await db.set_user_language_preference(interaction.user.id, interaction.guild_id, language)
 
-        # Fetch translations in new language
+
         translations = await fetch_page_translations(page_number, language)
         if translations is None:
             await interaction.response.send_message("❌ Failed to fetch translations. Please try again later.", ephemeral=True)
@@ -266,7 +266,7 @@ class LanguageButton(discord.ui.Button):
         formatted_text = await format_translations(translations)
         pages = paginate_text(formatted_text)
 
-        # Update the view with new language selection
+
         view = TranslationView(page_number, language, pages, 0)
 
         embed = discord.Embed(
@@ -415,16 +415,16 @@ class ScheduleTimeModal(discord.ui.Modal):
         from datetime import datetime
         
         try:
-            # Get guild timezone
+
             guild_config = await db.get_guild_config(self.guild_id)
             timezone = guild_config.get('timezone', 'UTC') if guild_config else 'UTC'
             
             time_input = self.children[0].value.strip()
             
-            # Parse time input (support multiple formats)
+
             time_input_upper = time_input.upper().replace(' ', '')
             
-            # Handle AM/PM format
+
             if 'AM' in time_input_upper or 'PM' in time_input_upper:
                 is_pm = 'PM' in time_input_upper
                 time_part = time_input_upper.replace('AM', '').replace('PM', '')
@@ -440,7 +440,7 @@ class ScheduleTimeModal(discord.ui.Modal):
                 elif is_pm:
                     hours += 12
             else:
-                # 24-hour format
+
                 if ':' in time_input:
                     hours, minutes = map(int, time_input.split(':'))
                 else:
@@ -451,7 +451,7 @@ class ScheduleTimeModal(discord.ui.Modal):
                 await interaction.response.send_message("Invalid time format!", ephemeral=True)
                 return
             
-            # Convert to UTC
+
             tz = pytz.timezone(timezone)
             local_time = datetime.now(tz).replace(hour=hours, minute=minutes, second=0, microsecond=0)
             utc_time = local_time.astimezone(pytz.UTC)
@@ -460,7 +460,7 @@ class ScheduleTimeModal(discord.ui.Modal):
             
             await db.add_scheduled_time(self.guild_id, "custom", time_value)
             
-            # Refresh the schedule view
+
             from cogs.schedule_views import ScheduleMainView
             view = ScheduleMainView(self.guild_id)
             await view.setup_items()
@@ -480,7 +480,7 @@ class ResetConfirmationView(discord.ui.View):
 
     @discord.ui.button(label="Yes, Reset Everything", style=discord.ButtonStyle.danger, emoji="⚠️")
     async def confirm_reset(self, button: discord.ui.Button, interaction: discord.Interaction):
-        # Disable buttons to prevent double-clicks
+
         for item in self.children:
             item.disabled = True
         await interaction.response.edit_message(view=self)
@@ -528,10 +528,10 @@ class PaginatedView(discord.ui.View):
         self.update_buttons()
 
     def update_buttons(self):
-        # Clear existing items
+
         self.clear_items()
 
-        # Previous button
+
         prev_button = discord.ui.Button(
             style=discord.ButtonStyle.primary,
             label="◀ Previous",
@@ -540,7 +540,7 @@ class PaginatedView(discord.ui.View):
         prev_button.callback = self.previous_page
         self.add_item(prev_button)
 
-        # Page indicator
+
         page_indicator = discord.ui.Button(
             style=discord.ButtonStyle.secondary,
             label=f"Page {self.current_page + 1}/{len(self.pages)}",
@@ -548,7 +548,7 @@ class PaginatedView(discord.ui.View):
         )
         self.add_item(page_indicator)
 
-        # Next button
+
         next_button = discord.ui.Button(
             style=discord.ButtonStyle.primary,
             label="Next ▶",

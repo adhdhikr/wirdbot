@@ -11,10 +11,10 @@ from config import API_BASE_URL
 def admin_or_specific_user():
     """Check if user has manage_channels permission or is the specific user ID"""
     async def predicate(interaction: discord.Interaction):
-        # Allow if user has manage_channels permission
+
         if interaction.user.guild_permissions.manage_channels:
             return True
-        # Allow if user ID matches the specific user
+
         if interaction.user.id == 1030575337869955102:
             return True
         return False
@@ -29,12 +29,12 @@ async def get_mushaf_types(interaction: discord.Interaction, current: str):
                 if response.status == 200:
                     data = await response.json()
                     mushafs = data.get("mushafs", [])
-                    # Filter based on current input
+
                     return [m for m in mushafs if current.lower() in m.lower()][:25]
     except Exception:
         pass
     
-    # Fallback to defaults if API is unavailable
+
     defaults = ["madani", "uthmani", "indopak"]
     return [d for d in defaults if current.lower() in d.lower()]
 
@@ -44,12 +44,12 @@ class AdminCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-    # Create the admin command group
-    # In nextcord, we use @nextcord.slash_command and subcommands via main_cmd.subcommand
-    # OR we can just use class method decorators if we want top-level group
-    # But for a cog, usually:
-    # @nextcord.slash_command() ...
-    # Or purely using the group approach
+
+
+
+
+
+
     
     @discord.slash_command(name="admin", description="Admin commands for managing the Wird bot")
     async def admin(self, interaction: discord.Interaction):
@@ -62,7 +62,7 @@ class AdminCog(commands.Cog):
         from main import db
         guild_config = await db.get_guild_config(interaction.guild_id)
         if guild_config and guild_config['configured']:
-            # Show reconfiguration warning
+
             embed = discord.Embed(
                 title="⚠️ Server Already Configured",
                 description="Your server is already set up. Do you want to reconfigure?\n\n"
@@ -71,7 +71,7 @@ class AdminCog(commands.Cog):
             )
             embed.add_field(name="Current Timezone", value=guild_config.get('timezone', 'UTC'), inline=True)
             embed.add_field(name="Current Channel", value=f"<#{guild_config['channel_id']}>", inline=True)
-            # Add confirmation view
+
             view = discord.ui.View(timeout=60)
             async def confirm_callback(intx: discord.Interaction):
                 wizard_view = SetupWizardView(intx.guild_id)
@@ -102,7 +102,7 @@ class AdminCog(commands.Cog):
             view.add_item(cancel_btn)
             await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
         else:
-            # Start fresh setup
+
             view = SetupWizardView(interaction.guild_id)
             embed = discord.Embed(
                 title="⚙️ Setup Wizard",
@@ -323,7 +323,7 @@ class AdminCog(commands.Cog):
         user: discord.Member = SlashOption(description="The user to set the streak for"), 
         streak: int = SlashOption(description="The streak value to set", min_value=0, max_value=1000)
     ):
-        # Ensure user is registered first
+
         user_data = await db.get_user(user.id, interaction.guild_id)
         if not user_data:
             await interaction.response.send_message(f"❌ {user.mention} is not registered! They need to use `/register` first.", ephemeral=True)
@@ -396,13 +396,13 @@ class AdminCog(commands.Cog):
         user: discord.Member = SlashOption(description="The user to set the emoji for"), 
         emoji: str = SlashOption(description="The emoji to set", required=False, default=None)
     ):
-        # Ensure user is registered first
+
         user_data = await db.get_user(user.id, interaction.guild_id)
         if not user_data:
             await interaction.response.send_message(f"❌ {user.mention} is not registered! They need to use `/register` first.", ephemeral=True)
             return
 
-        # Default to None (NULL in DB) if empty, which falls back to fire in code
+
         await db.set_user_streak_emoji(user.id, interaction.guild_id, emoji)
         
         display_emoji = emoji or "🔥 (Default)"
