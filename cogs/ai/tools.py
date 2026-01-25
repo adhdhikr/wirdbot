@@ -8,6 +8,7 @@ import traceback
 import aiohttp
 import os
 import time
+import asyncio
 from config import GEMINI_API_KEY, API_BASE_URL, VALID_MUSHAF_TYPES, TOOL_LOG_CHANNEL_ID
 from utils.tafsir import fetch_tafsir_for_ayah
 from utils.translation import fetch_page_translations
@@ -54,7 +55,11 @@ async def lookup_tafsir(surah: int, ayah: int, edition: str = 'en-tafisr-ibn-kat
     except (ValueError, TypeError):
         return "Invalid input parameters."
 
-    text = await fetch_tafsir_for_ayah(edition, surah, ayah)
+    try:
+        text = await fetch_tafsir_for_ayah(edition, surah, ayah)
+    except Exception as e:
+        return f"Error calling fetch_tafsir_for_ayah: {e}"
+
     if not text:
         return "Tafsir not found."
 
@@ -261,7 +266,10 @@ async def _get_ayah_safe(surah: int, ayah: int, edition: str = 'quran-uthmani'):
         surah = int(float(surah))
         ayah = int(float(ayah))
         ref = f"{surah}:{ayah}"
-        return await get_ayah(ref, edition)
+        try:
+             return await get_ayah(ref, edition)
+        except Exception as e:
+             return f"Error calling get_ayah('{ref}', '{edition}'): {e}"
     except (ValueError, TypeError):
         return "Invalid Surah or Ayah number."
 

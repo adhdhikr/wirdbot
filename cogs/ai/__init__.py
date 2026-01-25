@@ -6,6 +6,7 @@ import asyncio
 import io
 import time
 import aiohttp
+import traceback
 from config import GEMINI_API_KEY, API_BASE_URL, MAX_TOOL_CALLS, TOOL_LOG_CHANNEL_ID
 from database import db
 from .prompts import SYSTEM_PROMPT
@@ -361,7 +362,7 @@ class AICog(commands.Cog):
 
                             found_tool = False
                             for t in self.tools:
-                                if t.name == fname:
+                                if t.__name__ == fname:
                                     found_tool = True
                                     tool_result = await t(**fargs)
                                     break
@@ -371,6 +372,7 @@ class AICog(commands.Cog):
 
                     except Exception as e:
                         tool_result = f"Error executing {fname}: {e}"
+                        logger.error(f"Tool Execution Error ({fname}): {e}\n{traceback.format_exc()}")
                         error_occurred = True
 
                     logger.info(f"Tool {fname} executed. Result length: {len(str(tool_result))}")

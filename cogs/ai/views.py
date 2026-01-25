@@ -50,22 +50,27 @@ class CodeApprovalView(discord.ui.View):
 
         
 
-        result = await _execute_python_internal(self.cog.bot, self.code, {
-            'ctx': self.ctx,
-            'channel': self.ctx.channel,
-            'author': self.ctx.author,
-            'guild': self.ctx.guild,
-            'message': self.ctx.message,
-            '_ctx': self.ctx,
-            '_bot': self.cog.bot, # Will be replaced by ScopedBot inside function if not owner
-            '_author': self.ctx.author,
-            '_channel': self.ctx.channel,
-            '_guild': self.ctx.guild,
-            '_message': self.ctx.message,
-            '_msg': self.ctx.message,
-            '_find': discord.utils.find,
-            '_get': discord.utils.get
-        })
+        try:
+            result = await _execute_python_internal(self.cog.bot, self.code, {
+                'ctx': self.ctx,
+                'channel': self.ctx.channel,
+                'author': self.ctx.author,
+                'guild': self.ctx.guild,
+                'message': self.ctx.message,
+                '_ctx': self.ctx,
+                '_bot': self.cog.bot, 
+                '_author': self.ctx.author,
+                '_channel': self.ctx.channel,
+                '_guild': self.ctx.guild,
+                '_message': self.ctx.message,
+                '_msg': self.ctx.message,
+                '_find': discord.utils.find,
+                '_get': discord.utils.get
+            })
+        except Exception as e:
+            # Capture startup errors (like NameError) that happen before exec() matches them
+            result = f"Error: {e.__class__.__name__}: {e}"
+            logger.error(f"Execution Startup Error: {e}")
 
 
         try:
