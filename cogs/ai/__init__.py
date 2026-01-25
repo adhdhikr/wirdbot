@@ -159,11 +159,17 @@ class AICog(commands.Cog):
                     elif fname == 'lookup_quran_page':
                         p = fargs.get('page_number')
                         if p: context_str = f" (Page {p})"
-                    elif fname == 'get_ayah':
+                    elif fname == 'get_ayah' or fname == '_get_ayah_safe':
                         s = fargs.get('surah')
                         a = fargs.get('ayah')
-                        if s and a: context_str = f" ({s}:{a})"
-                    elif fname == 'search_quran':
+                        e = fargs.get('edition', '')
+                        if s and a: context_str = f" ({s}:{a}{f' - {e}' if e else ''})"
+                    elif fname == 'lookup_tafsir':
+                        s = fargs.get('surah')
+                        a = fargs.get('ayah')
+                        e = fargs.get('edition', '')
+                        if s and a: context_str = f" ({s}:{a}{f' - {e}' if e else ''})"
+                    elif fname == 'search_quran' or fname == '_search_quran_safe':
                         q = fargs.get('query')
                         if q: context_str = f" (`{q}`)"
                     elif fname == 'execute_sql':
@@ -357,6 +363,27 @@ class AICog(commands.Cog):
                              else:
                                   from .tools import get_db_schema
                                   tool_result = await get_db_schema()
+
+                        elif fname == 'force_bot_status':
+                            status_cog = self.bot.get_cog('Status')
+                            if not status_cog:
+                                tool_result = "❌ Error: Status Cog not loaded."
+                            else:
+                                txt = fargs.get('status_text')
+                                dur = int(fargs.get('duration_minutes', 30))
+                                await status_cog.force_status(txt, dur)
+                                tool_result = f"✅ Forced status to '{txt}' for {dur} minutes."
+
+                        elif fname == 'add_bot_status_option':
+                            status_cog = self.bot.get_cog('Status')
+                            if not status_cog:
+                                tool_result = "❌ Error: Status Cog not loaded."
+                            else:
+                                txt = fargs.get('status_text')
+                                if status_cog.add_status_option(txt):
+                                    tool_result = f"✅ Added '{txt}' to status rotation list."
+                                else:
+                                    tool_result = f"'{txt}' is already in the list."
 
                         else:
 

@@ -323,6 +323,28 @@ async def update_server_config(setting: str, value: str):
     """
     return "CONFIG_UPDATED"
 
+async def force_bot_status(status_text: str, duration_minutes: int = 30):
+    """
+    Force the bot's status (activity) to a specific text for a set duration.
+    Use this when you want to change what the bot is "doing" in Discord based on user request.
+    
+    Args:
+        status_text: The text to display (e.g., "Reading Quran", "Coding").
+        duration_minutes: How long to keep this status before resuming rotation. Default 30.
+    """
+    return "STATUS_FORCED_PLACEHOLDER"
+
+async def add_bot_status_option(status_text: str):
+    """
+    Add a new status option to the bot's rotation list.
+    Use this when the user wants to add a new "fun" activity for the bot to do periodically.
+    
+    Args:
+        status_text: The new status text to add.
+    """
+    return "STATUS_ADDED_PLACEHOLDER"
+
+
 async def _execute_python_internal(bot, code: str, ctx_data: dict) -> str:
     """Internal header to execute python code safely."""
     
@@ -419,6 +441,8 @@ ALL_TOOLS = [
     update_server_config,
     get_db_schema,
     execute_sql,
+    force_bot_status,
+    add_bot_status_option,
     _get_ayah_safe,
     _get_page_safe,
     _search_quran_safe
