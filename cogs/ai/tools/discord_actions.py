@@ -185,7 +185,10 @@ async def search_channel_history(query: str, limit: int = 5, **kwargs) -> str:
     async for msg in channel.history(limit=500):
         if query.lower() in msg.content.lower():
             auth = msg.author.display_name
-            matches.append(f"[{msg.created_at.strftime('%m-%d %H:%M')}] {auth}: {msg.content}")
+            content = msg.content
+            if msg.attachments:
+                content += f" [Attachment: {msg.attachments[0].url}]"
+            matches.append(f"[{msg.created_at.strftime('%m-%d %H:%M')}] {auth}: {content}")
             if len(matches) >= limit: break
             
     if not matches:

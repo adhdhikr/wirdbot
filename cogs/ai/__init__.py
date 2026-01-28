@@ -27,6 +27,7 @@ class AICog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.active_tasks = {} # Map channel_id -> asyncio.Task
+        self.active_bot_messages = {} # Map channel_id -> message_id (The bot's "Thinking..." or response message)
         self.interrupt_signals = {} # Map channel_id -> interrupter_name
         self.pending_approvals = {} # Map channel_id -> CodeApprovalView
         self.chat_histories = {} # Map channel_id -> list[types.Content]
@@ -352,16 +353,23 @@ class AICog(commands.Cog):
         reply_chain = []
         curr = message
 
+        # Trace back references ensuring we have the full object
         for _ in range(5):
-            if not curr.reference or not curr.reference.resolved:
+            if not curr.reference:
                 break
-            if isinstance(curr.reference.resolved, discord.Message):
+
+            if curr.reference.resolved and isinstance(curr.reference.resolved, discord.Message):
                 curr = curr.reference.resolved
                 reply_chain.append(curr)
+            elif curr.reference.message_id:
+                # Attempt to fetch if not resolved
+                try:
+                    curr = await message.channel.fetch_message(curr.reference.message_id)
+                    reply_chain.append(curr)
+                except:
+                    break
             else:
                 break
-        
-        
         
         # --- Time-Based and Char-Based Loading ---
         
@@ -384,31 +392,38 @@ class AICog(commands.Cog):
                 if msg.id <= self.context_pruning_markers[message.channel.id]:
                     continue 
 
-            # REMOVED AUTO-PRUNE LOOP AS REQUESTED
-            # We will handle time-gaps via prompt injection in run_chat instead
+            # Avoid duplicates if msg is already in reply chain
+            if msg.id in [m.id for m in reply_chain] or msg.id == message.id:
+                continue
 
-            if msg not in reply_chain and msg.id != message.id:
-                 # Check Char Limit
-                 if current_chars + len(msg.content) > char_limit:
-                      break
-                 
-                 current_chars += len(msg.content)
-                 recent_msgs.append(msg)
+            # Check Char Limit - Strict Content Count
+            msg_len = len(msg.content)
+            if current_chars + msg_len > char_limit:
+                 break
+            
+            current_chars += msg_len
+            recent_msgs.append(msg)
         
         recent_msgs.reverse() 
         reply_chain.reverse() 
+        
+        # Reply chain logic: Ensure they are always included, even if they push over limit?
+        # User requested "biggest priority". So we put them properly in flow.
+        # Construct full list
         full_context_msgs = recent_msgs + reply_chain
         
         history = []
-        limit = 100000 
+        
+        # Debug Log for Char Count
+        logger.info(f"Context Build: {current_chars} chars from {len(recent_msgs)} history msgs + {len(reply_chain)} replies.")
         
         for msg in full_context_msgs:
             role = "model" if msg.author.id == self.bot.user.id else "user"
             content = msg.content
             
-            # Removed [Replying to ...] prefix as it causes the model to mimic the pattern
-            # Reference context is usually sufficient for Gemini 3 models
-            pass
+            # Append attachment info for context
+            if msg.attachments:
+                content += f"\n[System: Attachment: {msg.attachments[0].url}]"
 
             if role == "user":
                 text = f"User {msg.author.display_name} ({msg.author.id}): {content}"
@@ -498,14 +513,21 @@ class AICog(commands.Cog):
                 
                 combined_context = message.content + image_analysis_text
                 
-                # --- OWNER OVERRIDE ---
-                is_owner = await self.bot.is_owner(message.author)
-                force_pro_keywords = ["use pro", "force pro", "pro model", "pro brain", "use 3 pro", "use pro model"]
-                owner_forced_pro = is_owner and any(kw in message.content.lower() for kw in force_pro_keywords)
+                # --- MODEL OVERRIDE ---
+                # Check for explicit model requests in the message
+                msg_content_lower = message.content.lower()
+                force_pro_keywords = ["use pro", "force pro", "pro model", "pro brain", "use 3 pro"]
+                force_flash_keywords = ["use flash", "force flash", "flash model", "fast model", "use 3 flash"]
                 
-                if owner_forced_pro:
+                forced_pro = any(kw in msg_content_lower for kw in force_pro_keywords)
+                forced_flash = any(kw in msg_content_lower for kw in force_flash_keywords)
+                
+                if forced_pro:
                     complexity = "COMPLEX"
-                    logger.info(f"Owner Forced PRO Model: {message.author}")
+                    logger.info(f"User Forced PRO Model: {message.author}")
+                elif forced_flash:
+                     complexity = "SIMPLE"
+                     logger.info(f"User Forced FLASH Model: {message.author}")
                 else:
                     complexity = await evaluate_complexity(combined_context)
                      
@@ -633,6 +655,8 @@ class AICog(commands.Cog):
                 # Cleanup task from map
                 if message.channel.id in self.active_tasks:
                     del self.active_tasks[message.channel.id]
+                if message.channel.id in self.active_bot_messages:
+                    del self.active_bot_messages[message.channel.id]
 
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message):
@@ -657,8 +681,20 @@ class AICog(commands.Cog):
         logger.info(f"AI Triggered by {message.author.display_name}")
         
         # --- TASK INTERRUPTION LOGIC ---
-        # If there is an active generation in this channel, CANCEL IT.
+        # Smart Interruption: ONLY cancel if this new message is a REPLY to the bot's ongoing message.
+        
+        should_interrupt = False
+        
         if message.channel.id in self.active_tasks:
+            # Check if it's a reply
+            if message.reference and message.reference.message_id:
+                # Check if it references the current active bot message
+                active_msg_id = self.active_bot_messages.get(message.channel.id)
+                if active_msg_id and message.reference.message_id == active_msg_id:
+                    should_interrupt = True
+                    logger.info(f"Targeted Interruption detected: {message.author} replied to active bot message.")
+        
+        if should_interrupt:
             logging.info(f"Interrupting active task in channel {message.channel.id}")
             task = self.active_tasks[message.channel.id]
             
@@ -675,7 +711,22 @@ class AICog(commands.Cog):
                 task.cancel()
             # Wait a tiny bit? No, proceed immediately.
             
-        # Create new task
+        # Create new task ONLY if we aren't already running one (unless we just interrupted it)
+        # Note: If we didn't interrupt, and a task is running, we usually IGNORE the new message 
+        # (or queue it, but here we just ignore non-reply messages during generation as per "make it so its ONLY when... it cancels... other than that continue")
+        # Wait, if we DON'T interrupt, do we ignore? 
+        # "make it so it can analyze images... also... cancel... only if necessary"
+        # User said: "make it so its ONLY when the bots ongoing message is replied to that it cancels. not on any message in the channel."
+        # This implies: If it's NOT a reply, do NOT cancel. And presumably do NOT start a new task if one is busy?
+        # Or does it mean "Don't cancel, just run in parallel"? 
+        # Typically Discord bots can't handle well parallel chats in same channel context.
+        # I'll assume: If busy and NOT a reply-interrupt, IGNORE the message (don't trigger).
+        
+        if message.channel.id in self.active_tasks and not self.active_tasks[message.channel.id].done():
+            if not should_interrupt:
+                logger.info(f"Ignoring message in {message.channel.id} as AI is busy and this is not a cancellation reply.")
+                return 
+
         task = asyncio.create_task(self.run_chat(message))
         self.active_tasks[message.channel.id] = task
 
