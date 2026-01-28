@@ -604,7 +604,6 @@ class AICog(commands.Cog):
                 tracked_msg_ids.append(sent_message.id)
 
                 time_gap_note = ""
-                
                 # Time Gap Check (> 6 Hours)
                 # Check the most recent message before this one to see if there was a long break
                 last_msg_chk = [m async for m in message.channel.history(limit=1, before=message)]
@@ -612,25 +611,6 @@ class AICog(commands.Cog):
                      delta = (message.created_at - last_msg_chk[0].created_at).total_seconds()
                      if delta > 6 * 3600:
                           time_gap_note = "\n[System: Significant time gap (>6h) detected since last message. If the user's topic has changed, AGGRESSIVELY suggest cleaning context.]"
-
-                if message.attachments:
-                    valid_exts = {'png', 'jpg', 'jpeg', 'gif', 'webp'}
-                    target_att = next((a for a in message.attachments if a.filename.split('.')[-1].lower() in valid_exts), None)
-                    
-                    if target_att:
-                        att_status_msg = await message.reply(f"-# 👀 Analyzing `{target_att.filename}` with `{selected_model}`...")
-                        
-                        self.active_tasks[att_status_msg.id] = current_task
-                        tracked_msg_ids.append(att_status_msg.id)
-                        
-                        try:
-                             # Wait for vision tool
-                             description = await analyze_image(target_att.url, model_name=selected_model)
-                             image_analysis_text = f"\n[System: Attached Image ({target_att.filename}) Analysis: {description}]"
-                             await att_status_msg.edit(content=f"-# ✅ Analyzed `{target_att.filename}`")
-                        except Exception as e:
-                             logger.error(f"Image analysis failed: {e}")
-                             await att_status_msg.edit(content=f"-# ❌ Failed analysis: {e}")
                 
                 # --- PERMISSIONS & TOOL FILTERING ---
                 is_owner = await self.bot.is_owner(message.author)
