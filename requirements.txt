@@ -8,3 +8,5 @@ beautifulsoup4
 RestrictedPython
 aiosqlite
 onami
+ddgs
+pytz
