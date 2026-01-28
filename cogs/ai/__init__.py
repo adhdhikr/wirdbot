@@ -376,7 +376,7 @@ class AICog(commands.Cog):
         """Initial Trigger for the chat loop."""
         try:
             response = await chat_session.send_message(content)
-            return await self._process_chat_response(chat_session, response, message, sent_message=sent_message, execution_logs=[])
+            return await self._process_chat_response(chat_session, response, message, existing_message=sent_message, execution_logs=[])
         except Exception as e:
             logger.error(f"AI Turn Error: {e}")
             return f"❌ AI Error: {e}"
