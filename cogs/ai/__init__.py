@@ -181,7 +181,6 @@ class AICog(commands.Cog):
                             'bot': self.bot,
                             'guild': message.guild,
                             'guild_id': message.guild.id if message.guild else None,
-                            'user_id': message.author.id,
                             'channel': message.channel,
                             'message': message,
                             'is_owner': await self.bot.is_owner(message.author),

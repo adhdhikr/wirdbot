@@ -12,7 +12,8 @@ async def get_my_stats(**kwargs):
     """
     Get the caller's stats (streaks, etc).
     """
-    user_id = kwargs.get('user_id')
+    message = kwargs.get('message')
+    user_id = message.author.id if message else kwargs.get('user_id')
     guild_id = kwargs.get('guild_id')
     
     if not user_id or not guild_id:
@@ -43,7 +44,8 @@ async def set_my_streak_emoji(emoji: str, **kwargs):
     Args:
         emoji: The new emoji to use for streak display.
     """
-    user_id = kwargs.get('user_id')
+    message = kwargs.get('message')
+    user_id = message.author.id if message else kwargs.get('user_id')
     guild_id = kwargs.get('guild_id')
     
     if not user_id or not guild_id:

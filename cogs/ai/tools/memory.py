@@ -9,9 +9,10 @@ async def remember_info(content: str, **kwargs) -> str:
     
     Args:
         content: The fact or information to remember.
-        **kwargs: Injected context (user_id, guild_id).
+        **kwargs: Injected context.
     """
-    user_id = kwargs.get('user_id')
+    message = kwargs.get('message')
+    user_id = message.author.id if message else kwargs.get('user_id')
     guild_id = kwargs.get('guild_id')
     
     if not user_id or not guild_id:
@@ -32,7 +33,8 @@ async def get_my_memories(search_query: str = None, **kwargs) -> str:
         search_query: Optional keywords to filter memories.
         **kwargs: Injected context.
     """
-    user_id = kwargs.get('user_id')
+    message = kwargs.get('message')
+    user_id = message.author.id if message else kwargs.get('user_id')
     guild_id = kwargs.get('guild_id')
     
     if not user_id or not guild_id:
@@ -63,7 +65,8 @@ async def forget_memory(memory_id: int, **kwargs) -> str:
         memory_id: The ID of the memory to delete (found via get_my_memories).
         **kwargs: Injected context.
     """
-    user_id = kwargs.get('user_id')
+    message = kwargs.get('message')
+    user_id = message.author.id if message else kwargs.get('user_id')
     
     try:
         await db.delete_user_memory(memory_id, user_id)
