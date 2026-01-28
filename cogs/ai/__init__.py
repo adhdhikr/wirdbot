@@ -27,6 +27,7 @@ class AICog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.active_tasks = {} # Map channel_id -> asyncio.Task
+        self.interrupt_signals = {} # Map channel_id -> interrupter_name
         self.chat_histories = {} # Map channel_id -> list[types.Content]
         self.context_pruning_markers = {} # Map channel_id -> message_id (ignore msgs before this)
         if GEMINI_API_KEY:
@@ -169,10 +170,8 @@ class AICog(commands.Cog):
                         
                         ctx_kwargs = {
                             'bot': self.bot,
+                            'guild': message.guild,
                             'guild_id': message.guild.id if message.guild else None,
-                            'user_id': message.author.id,
-                            'channel': message.channel,
-                            'message': message,
                             'user_id': message.author.id,
                             'channel': message.channel,
                             'message': message,
@@ -604,9 +603,16 @@ class AICog(commands.Cog):
                          logger.warning("Could not persist history: neither '_curated_history' nor 'history' found.")
             
             except asyncio.CancelledError:
-                 logger.info(f"Chat task cancelled for {message.author.display_name}")
-                 # Optional: React to show cancellation? 
-                 # await message.add_reaction("🛑") 
+                 interrupter = self.interrupt_signals.pop(message.channel.id, "User")
+                 logger.info(f"Chat task cancelled for {message.channel.id} by {interrupter}")
+                 
+                 if sent_message:
+                     try:
+                        content = sent_message.content
+                        if len(content) + 50 < 2000:
+                            await sent_message.edit(content=content + f"\n🛑 **Interrupted by {interrupter}**")
+                     except Exception as e:
+                         logger.error(f"Failed to edit interrupted message: {e}")
                  pass
             except Exception as e:
                 logger.error(f"Error in AI handler: {e}")
@@ -644,6 +650,10 @@ class AICog(commands.Cog):
         if message.channel.id in self.active_tasks:
             logging.info(f"Interrupting active task in channel {message.channel.id}")
             task = self.active_tasks[message.channel.id]
+            
+            # Signal interruption source
+            self.interrupt_signals[message.channel.id] = message.author.display_name
+            
             if not task.done():
                 task.cancel()
             # Wait a tiny bit? No, proceed immediately.

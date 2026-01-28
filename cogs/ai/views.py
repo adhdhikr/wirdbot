@@ -122,7 +122,12 @@ class CodeApprovalView(discord.ui.View):
         self.value = False
         for child in self.children:
             child.disabled = True
-        await interaction.response.edit_message(content="❌ **Execution Cancelled**", view=self)
+            
+        # formatting
+        current_content = interaction.message.content if interaction.message else "Proposed Code:"
+        new_content = current_content + "\n\n❌ **Execution Cancelled by User**"
+        
+        await interaction.response.edit_message(content=new_content, view=self)
         
         # Resume AI Chat with refusal
         try:
