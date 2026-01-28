@@ -331,6 +331,58 @@ class AICog(commands.Cog):
                 # --- ATTACH SANDBOX UI ---
                 view = SandboxExecutionView(execution_logs) if execution_logs else None
                 
+                # Helper: Condense tool call lines
+                def condense_tool_calls(content: str) -> str:
+                    """Condense multiple tool call lines into a summary."""
+                    lines = content.split('\n')
+                    tool_lines = []
+                    other_lines = []
+                    
+                    for line in lines:
+                        # Match tool call status lines: -# ✅ Called `tool_name` or -# ❌ Error `tool_name`
+                        if line.strip().startswith('-#') and ('✅ Called' in line or '❌ Error' in line):
+                            tool_lines.append(line)
+                        else:
+                            other_lines.append(line)
+                    
+                    if len(tool_lines) <= 2:
+                        # Don't condense if only 1-2 calls
+                        return content
+                    
+                    # Count tool occurrences
+                    from collections import Counter
+                    tool_counts = Counter()
+                    errors = []
+                    
+                    for line in tool_lines:
+                        # Extract tool name from backticks
+                        match = re.search(r'`([^`]+)`', line)
+                        if match:
+                            tool_name = match.group(1)
+                            if '❌ Error' in line:
+                                errors.append(tool_name)
+                            else:
+                                tool_counts[tool_name] += 1
+                    
+                    # Build condensed line
+                    parts = []
+                    for tool, count in tool_counts.items():
+                        if count > 1:
+                            parts.append(f"`{tool}` ×{count}")
+                        else:
+                            parts.append(f"`{tool}`")
+                    
+                    # Add errors
+                    for err_tool in errors:
+                        parts.append(f"❌`{err_tool}`")
+                    
+                    if parts:
+                        condensed = "-# 🛠️ " + ", ".join(parts)
+                        # Replace all tool lines with the condensed version
+                        return '\n'.join(other_lines + [condensed])
+                    
+                    return '\n'.join(other_lines)
+                
                 # Helper: Strip only thinking/generating status (not tool calls)
                 def strip_status(content: str) -> str:
                     lines = content.split('\n')
@@ -338,9 +390,15 @@ class AICog(commands.Cog):
                         '🧠 Thinking' in l or 'loading:' in l
                     )]
                     return '\n'.join(cleaned).strip()
+                
+                # Apply both: strip status and condense tool calls
+                def finalize_content(content: str) -> str:
+                    content = strip_status(content)
+                    content = condense_tool_calls(content)
+                    return content.strip()
 
                 if sent_message and len(sent_message.content) + len(accumulated_text) < 2000:
-                     final_content = strip_status(sent_message.content)
+                     final_content = finalize_content(sent_message.content)
                      await sent_message.edit(content=(final_content + "\n" + accumulated_text).strip() if final_content else accumulated_text, view=view)
                 else:
                     chunks = safe_split_text(accumulated_text, 1900) # Safety margin
@@ -348,7 +406,7 @@ class AICog(commands.Cog):
                     for i, chunk in enumerate(chunks):
                         if i == 0:
                             if sent_message:
-                                final_content = strip_status(sent_message.content)
+                                final_content = finalize_content(sent_message.content)
                                 combined = (final_content + "\n" + chunk).strip() if final_content else chunk
                                 if len(combined) < 2000:
                                      await sent_message.edit(content=combined)
