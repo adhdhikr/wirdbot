@@ -781,29 +781,25 @@ class AICog(commands.Cog):
                  logger.info(f"Auto-rejected pending code approval in {message.channel.id} due to interruption.")
             
             if not task.done():
-                task.cancel()
-                # Wait for the task to actually finish cancelling
+                # FIRST: Edit the target message immediately for instant feedback
                 try:
-                    await task
-                except asyncio.CancelledError:
-                    pass
-            
-            # Edit the target message (the one being replied to) to show interrupted
-            try:
-                target_msg = await message.channel.fetch_message(target_msg_id)
-                if target_msg and target_msg.author.id == self.bot.user.id:
-                    content = target_msg.content
-                    # Remove any "Thinking" status lines
-                    content = content.replace("-# 🧠 Thinking (Pro Model)...", "").strip()
-                    content = content.replace("-# ⚡ Thinking...", "").strip()
-                    # Remove any tool calling status lines
-                    content = re.sub(r"\n?-#\s*🛠️\s*Calling\s*`[^`]+`.*?\.\.\.", "", content)
-                    if content:
-                        await target_msg.edit(content=content + f"\n🛑 **Interrupted by {message.author.display_name}**", view=None)
-                    else:
-                        await target_msg.edit(content=f"🛑 **Interrupted by {message.author.display_name}**", view=None)
-            except Exception as e:
-                logger.error(f"Failed to edit interrupted message: {e}")
+                    target_msg = await message.channel.fetch_message(target_msg_id)
+                    if target_msg and target_msg.author.id == self.bot.user.id:
+                        content = target_msg.content
+                        # Remove any "Thinking" status lines
+                        content = content.replace("-# 🧠 Thinking (Pro Model)...", "").strip()
+                        content = content.replace("-# ⚡ Thinking...", "").strip()
+                        # Remove any tool calling status lines
+                        content = re.sub(r"\n?-#\s*🛠️\s*Calling\s*`[^`]+`.*?\.\.\.", "", content)
+                        if content:
+                            await target_msg.edit(content=content + f"\n🛑 **Interrupted by {message.author.display_name}**", view=None)
+                        else:
+                            await target_msg.edit(content=f"🛑 **Interrupted by {message.author.display_name}**", view=None)
+                except Exception as e:
+                    logger.error(f"Failed to edit interrupted message: {e}")
+                
+                # THEN: Cancel the task (don't wait for it to finish)
+                task.cancel()
             
         # --- CONCURRENCY ---
         # We ALWAYS spawn a new task. We do not block.
