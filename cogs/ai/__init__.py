@@ -312,7 +312,7 @@ class AICog(commands.Cog):
 
                 if sent_message and len(sent_message.content) + len(accumulated_text) < 2000:
                      # Clear "Thinking" status if present
-                     final_content = sent_message.content.replace("-# 🧠 Thinking (Pro Model)...", "").strip()
+                     final_content = sent_message.content.replace("-# 🧠 Thinking (Pro Model)...", "").replace("-# ⚡ Thinking...", "").strip()
                      await sent_message.edit(content=(final_content + "\n" + accumulated_text).strip(), view=view)
                 else:
                     chunks = safe_split_text(accumulated_text, 1900) # Safety margin
@@ -321,7 +321,7 @@ class AICog(commands.Cog):
                         if i == 0:
                             if sent_message:
                                 # Update the initial "Thinking..." message with the first chunk
-                                final_content = sent_message.content.replace("-# 🧠 Thinking (Pro Model)...", "").strip()
+                                final_content = sent_message.content.replace("-# 🧠 Thinking (Pro Model)...", "").replace("-# ⚡ Thinking...", "").strip()
                                 # If the thinking message plus chunk is too big, just replace content entirely or error?
                                 # safe_split logic usually ensures chunk is < 2000. 
                                 # But final_content might be non-empty (previous tool outputs).
