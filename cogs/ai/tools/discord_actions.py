@@ -26,7 +26,7 @@ BLOCKED_IMPORTS_NON_OWNER = [
 BLOCKED_URL_PATTERNS = ['http://', 'https://', 'ftp://']
 
 
-async def execute_discord_code(code: str):
+async def execute_discord_code(code: str, **kwargs):
     """
     Propose Python code to execute with Discord context.
     Use this for Discord server interactions: managing channels, roles, sending messages, etc.
@@ -40,6 +40,12 @@ async def execute_discord_code(code: str):
     Args:
         code: The Python code to execute.
     """
+    is_owner = kwargs.get('is_owner', False)
+    is_admin = kwargs.get('is_admin', False)
+    
+    if not (is_owner or is_admin):
+        return "❌ Error: Permission Denied. You must be an Admin or Bot Owner to use this tool."
+        
     return "Code proposed. Waiting for user approval."
 
 

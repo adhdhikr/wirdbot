@@ -12,12 +12,12 @@ import traceback
 import re
 from config import GEMINI_API_KEY, API_BASE_URL, MAX_TOOL_CALLS, TOOL_LOG_CHANNEL_ID
 from database import db
-from .prompts import SYSTEM_PROMPT
+from .prompts import SYSTEM_PROMPT, get_system_prompt
 from .views import CodeApprovalView, ContinueExecutionView, SandboxExecutionView
 from .utils import safe_split_text, ScopedBot
 
 # Import tools from the new package
-from .tools import CUSTOM_TOOLS, execute_discord_code, analyze_image
+from .tools import CUSTOM_TOOLS, ADMIN_TOOLS, DISCORD_TOOLS, execute_discord_code, analyze_image
 from .router import evaluate_complexity, SIMPLE_MODEL, COMPLEX_MODEL
 
 logger = logging.getLogger(__name__)
@@ -176,6 +176,7 @@ class AICog(commands.Cog):
                             'channel': message.channel,
                             'message': message,
                             'is_owner': await self.bot.is_owner(message.author),
+                            'is_admin': message.author.guild_permissions.administrator if message.guild else False,
                             'model_name': getattr(chat_session, 'model_name', 'gemini-3-flash-preview'),
                             'cog': self 
                         }
@@ -533,12 +534,30 @@ class AICog(commands.Cog):
                              logger.error(f"Image analysis failed: {e}")
                              await att_status_msg.edit(content=f"-# ❌ Failed analysis: {e}")
                 
+                # --- PERMISSIONS & TOOL FILTERING ---
+                is_owner = await self.bot.is_owner(message.author)
+                is_admin = message.author.guild_permissions.administrator if message.guild else False
+                
+                allowed_tools = list(self.all_tools)
+                
+                if not (is_admin or is_owner):
+                    # Remove Restricted Tools
+                    # We exclude all ADMIN_TOOLS and specifically execute_discord_code
+                    # We allow search_channel_history (which is in DISCORD_TOOLS)
+                    restricted_funcs = [t.__name__ for t in ADMIN_TOOLS] + ['execute_discord_code']
+                    
+                    # self.all_tools contains raw Python functions (Client-side tools)
+                    allowed_tools = [t for t in self.all_tools if t.__name__ not in restricted_funcs]
+
+                # Generate Dynamic System Prompt
+                current_system_prompt = get_system_prompt(is_admin=is_admin, is_owner=is_owner)
+                
                 chat = self.async_client.chats.create(
                     model=selected_model,
                     history=history,
                     config=types.GenerateContentConfig(
-                        tools=self.all_tools,
-                        system_instruction=SYSTEM_PROMPT,
+                        tools=allowed_tools,
+                        system_instruction=current_system_prompt,
                         automatic_function_calling=dict(disable=True) 
                     )
                 )

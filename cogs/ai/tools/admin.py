@@ -20,7 +20,11 @@ async def execute_sql(query: str, **kwargs):
     """
     guild_id = kwargs.get('guild_id')
     is_owner = kwargs.get('is_owner', False)
-    
+    is_admin = kwargs.get('is_admin', False)
+
+    if not (is_owner or is_admin):
+        return "❌ Error: Permission Denied. You must be an Admin or Bot Owner to use this tool."
+
     query = query.strip()
     
     # Validate query type
@@ -60,7 +64,7 @@ async def execute_sql(query: str, **kwargs):
         return f"SQL Error: {e}"
 
 
-async def search_codebase(query: str, is_regex: bool = False):
+async def search_codebase(query: str, is_regex: bool = False, **kwargs):
     """
     Search for a text pattern in the codebase.
     Returns file paths and line numbers where the pattern is found.
@@ -69,6 +73,8 @@ async def search_codebase(query: str, is_regex: bool = False):
         query: The string or regex pattern to search for.
         is_regex: If True, treats query as regex. Default False.
     """
+    if not (kwargs.get('is_admin') or kwargs.get('is_owner')):
+        return "❌ Error: Permission Denied."
     base_path = os.getcwd()
     allowed_extensions = ('.py', '.md', '.txt', '.json', '.sql')
     results = []
@@ -121,7 +127,7 @@ async def search_codebase(query: str, is_regex: bool = False):
     return "\n".join(results) if results else "No matches found."
 
 
-async def read_file(filename: str, start_line: int = 1, end_line: int = 100):
+async def read_file(filename: str, start_line: int = 1, end_line: int = 100, **kwargs):
     """
     Read a file from the bot's codebase. 
     Reads first 100 lines by default. Specify lines to read more.
@@ -131,6 +137,8 @@ async def read_file(filename: str, start_line: int = 1, end_line: int = 100):
         start_line: Start line number (1-indexed). Default 1.
         end_line: End line number (inclusive). Default 100.
     """
+    if not (kwargs.get('is_admin') or kwargs.get('is_owner')):
+        return "❌ Error: Permission Denied."
     try:
         start_line = int(float(start_line))
         end_line = int(float(end_line))
@@ -174,11 +182,13 @@ async def read_file(filename: str, start_line: int = 1, end_line: int = 100):
         return f"Error reading file: {e}"
 
 
-async def get_db_schema():
+async def get_db_schema(**kwargs):
     """
     Get the current database schema (CREATE TABLE statements).
     Use this to understand table names, columns, and relationships.
     """
+    if not (kwargs.get('is_admin') or kwargs.get('is_owner')):
+        return "❌ Error: Permission Denied."
     try:
         tables = await db.connection.execute_many(
             "SELECT name, sql FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%';"
@@ -213,6 +223,9 @@ async def update_server_config(setting: str, value: str, **kwargs):
         value: The new value to set.
     """
     guild_id = kwargs.get('guild_id')
+    if not (kwargs.get('is_admin') or kwargs.get('is_owner')):
+        return "❌ Error: Permission Denied."
+        
     if not guild_id:
         return "Error: Cannot update config without guild context."
 
