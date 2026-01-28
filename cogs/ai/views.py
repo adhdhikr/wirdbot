@@ -123,11 +123,15 @@ class CodeApprovalView(discord.ui.View):
         for child in self.children:
             child.disabled = True
             
-        # formatting
+        # Strip generating/thinking status and format
         current_content = interaction.message.content if interaction.message else "Proposed Code:"
+        lines = current_content.split('\n')
+        cleaned = [l for l in lines if not ('🧠 Thinking' in l or 'loading:' in l)]
+        current_content = '\n'.join(cleaned).strip()
+        
         new_content = current_content + "\n\n❌ **Execution Cancelled by User**"
         
-        if  interaction:
+        if interaction:
              await interaction.response.edit_message(content=new_content, view=self)
         
         # Stop everything. Do NOT resume chat.
@@ -140,8 +144,13 @@ class CodeApprovalView(discord.ui.View):
         self.value = False
         for child in self.children:
             child.disabled = True
-            
+        
+        # Strip generating/thinking status
         current_content = self.message.content
+        lines = current_content.split('\n')
+        cleaned = [l for l in lines if not ('🧠 Thinking' in l or 'loading:' in l)]
+        current_content = '\n'.join(cleaned).strip()
+        
         new_content = current_content + f"\n\n🛑 **Auto-Rejected: Interrupted by {interrupter_name}**"
         
         try:
