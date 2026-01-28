@@ -508,6 +508,8 @@ class AICog(commands.Cog):
         current_task = asyncio.current_task()
         tracked_msg_ids = [] # Keep local list to cleanup later
         
+        logger.info(f"STARTING run_chat for MsgID: {message.id} | Content: '{message.content}' | Author: {message.author}")
+        
         async with message.channel.typing():
             try:
                 # 1. Retrieve or Build History
@@ -683,6 +685,8 @@ class AICog(commands.Cog):
                 elif message.author.guild_permissions.administrator:
                     user_msg += "\n[System: User IS Admin]"
                 
+                logger.info(f"FINAL PROMPT to Gemini for MsgID {message.id}:\n{user_msg}\nHISTORY LEN: {len(history)}")
+                
                 await self._process_chat_turn(chat, user_msg, message, sent_message=sent_message)
                 
                 # 2. Update History
@@ -700,19 +704,8 @@ class AICog(commands.Cog):
             except asyncio.CancelledError:
                  interrupter = self.interrupt_signals.pop(message.channel.id, "User")
                  logger.info(f"Chat task cancelled for {message.channel.id} by {interrupter}")
-                 
-                 if sent_message:
-                     try:
-                        content = sent_message.content
-                        if len(content) + 50 < 2000:
-                            await sent_message.edit(content=content + f"\n🛑 **Interrupted by {interrupter}**")
-                     except Exception as e:
-                         logger.error(f"Failed to edit interrupted message: {e}")
-                 pass
-            except Exception as e:
-                logger.error(f"Error in AI handler: {e}")
-                traceback.print_exc()
-                await message.reply("❌ Error processing request. Check logs.")
+                 # Message editing is now handled in on_message where cancellation occurs
+                 raise  # Re-raise to let the task be properly cancelled
             except Exception as e:
                 logger.error(f"Error in AI handler: {e}")
                 traceback.print_exc()
@@ -781,6 +774,28 @@ class AICog(commands.Cog):
             
             if not task.done():
                 task.cancel()
+                # Wait for the task to actually finish cancelling
+                try:
+                    await task
+                except asyncio.CancelledError:
+                    pass
+            
+            # Edit the target message (the one being replied to) to show interrupted
+            try:
+                target_msg = await message.channel.fetch_message(target_msg_id)
+                if target_msg and target_msg.author.id == self.bot.user.id:
+                    content = target_msg.content
+                    # Remove any "Thinking" status lines
+                    content = content.replace("-# 🧠 Thinking (Pro Model)...", "").strip()
+                    content = content.replace("-# ⚡ Thinking...", "").strip()
+                    # Remove any tool calling status lines
+                    content = re.sub(r"\n?-#\s*🛠️\s*Calling\s*`[^`]+`.*?\.\.\.", "", content)
+                    if content:
+                        await target_msg.edit(content=content + f"\n🛑 **Interrupted by {message.author.display_name}**", view=None)
+                    else:
+                        await target_msg.edit(content=f"🛑 **Interrupted by {message.author.display_name}**", view=None)
+            except Exception as e:
+                logger.error(f"Failed to edit interrupted message: {e}")
             
         # --- CONCURRENCY ---
         # We ALWAYS spawn a new task. We do not block.
