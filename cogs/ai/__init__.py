@@ -449,8 +449,8 @@ class AICog(commands.Cog):
                             # Better: Import the tool function.
                             from .tools.vision import analyze_image
                             
-                            # We use a fast model for this initial analysis if possible, or usually Flash is fine.
-                            description = await analyze_image(target_att.url, question="Describe this image in extreme detail for context.", model_name="gemini-2.0-flash-lite-preview-02-05")
+                            # Always use Gemini 3 Flash for Image Analysis
+                            description = await analyze_image(target_att.url, question="Describe this image in extreme detail for context.", model_name=SIMPLE_MODEL)
                             
                             image_analysis_text = f"\n[System: User uploaded an Image. Description: {description}]"
                             

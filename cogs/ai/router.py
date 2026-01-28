@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
 
 # Model Configuration
 # Model Configuration
-EVALUATOR_MODEL = "gemini-2.0-flash-lite-preview-02-05"
+EVALUATOR_MODEL = "gemini-2.5-flash-lite"
 SIMPLE_MODEL = "gemini-3-flash-preview"
 COMPLEX_MODEL = "gemini-3-pro-preview"
 
