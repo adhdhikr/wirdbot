@@ -372,11 +372,11 @@ class AICog(commands.Cog):
              return f"❌ Error: {e}"
 
 
-    async def _process_chat_turn(self, chat_session, content, message: discord.Message):
+    async def _process_chat_turn(self, chat_session, content, message: discord.Message, sent_message=None):
         """Initial Trigger for the chat loop."""
         try:
             response = await chat_session.send_message(content)
-            return await self._process_chat_response(chat_session, response, message, execution_logs=[])
+            return await self._process_chat_response(chat_session, response, message, sent_message=sent_message, execution_logs=[])
         except Exception as e:
             logger.error(f"AI Turn Error: {e}")
             return f"❌ AI Error: {e}"
@@ -675,7 +675,7 @@ class AICog(commands.Cog):
                 elif message.author.guild_permissions.administrator:
                     user_msg += "\n[System: User IS Admin]"
                 
-                await self._process_chat_turn(chat, user_msg, message)
+                await self._process_chat_turn(chat, user_msg, message, sent_message=sent_message)
                 
                 # 2. Update History
                 # 2. Update History
