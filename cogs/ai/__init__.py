@@ -485,7 +485,17 @@ class AICog(commands.Cog):
                 # Route based on (User Text + Image Description) to catch "Solve this math problem" + [Math Image]
                 
                 combined_context = message.content + image_analysis_text
-                complexity = await evaluate_complexity(combined_context)
+                
+                # --- OWNER OVERRIDE ---
+                is_owner = await self.bot.is_owner(message.author)
+                force_pro_keywords = ["use pro", "force pro", "pro model", "pro brain", "use 3 pro", "use pro model"]
+                owner_forced_pro = is_owner and any(kw in message.content.lower() for kw in force_pro_keywords)
+                
+                if owner_forced_pro:
+                    complexity = "COMPLEX"
+                    logger.info(f"Owner Forced PRO Model: {message.author}")
+                else:
+                    complexity = await evaluate_complexity(combined_context)
                      
                 selected_model = COMPLEX_MODEL if complexity == "COMPLEX" else SIMPLE_MODEL
                 
