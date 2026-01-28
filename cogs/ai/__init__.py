@@ -18,6 +18,7 @@ from .utils import safe_split_text, ScopedBot
 
 # Import tools from the new package
 from .tools import CUSTOM_TOOLS, ADMIN_TOOLS, DISCORD_TOOLS, execute_discord_code, analyze_image
+from .tools.memory import fetch_user_memory_context
 from .router import evaluate_complexity, SIMPLE_MODEL, COMPLEX_MODEL
 
 logger = logging.getLogger(__name__)
@@ -552,6 +553,23 @@ class AICog(commands.Cog):
                 # Generate Dynamic System Prompt
                 current_system_prompt = get_system_prompt(is_admin=is_admin, is_owner=is_owner)
                 
+                # --- MEMORY INJECTION ---
+                memory_context = ""
+                try:
+                    # 1. Author Memory
+                    auth_mem = await fetch_user_memory_context(message.author.id, message.guild.id)
+                    if auth_mem:
+                        memory_context += f"\n[System: Memories about User @{message.author.display_name}: {auth_mem}]"
+                        
+                    # 2. Mentioned Users Memory
+                    for user in message.mentions:
+                        if user.id != message.author.id and user.id != self.bot.user.id and not user.bot:
+                            men_mem = await fetch_user_memory_context(user.id, message.guild.id)
+                            if men_mem:
+                                memory_context += f"\n[System: Memories about User @{user.display_name}: {men_mem}]"
+                except Exception as e:
+                    logger.error(f"Memory injection error: {e}")
+
                 chat = self.async_client.chats.create(
                     model=selected_model,
                     history=history,
@@ -565,7 +583,7 @@ class AICog(commands.Cog):
                 chat.is_pro_model = (selected_model == COMPLEX_MODEL)
                 chat.model_name = selected_model
                 
-                user_msg = f"User {message.author.display_name} ({message.author.id}): {message.content}\n[System: THIS IS THE CURRENT MESSAGE. REPLY TO THIS.]{image_analysis_text}{time_gap_note}"
+                user_msg = f"User {message.author.display_name} ({message.author.id}): {message.content}\n[System: THIS IS THE CURRENT MESSAGE. REPLY TO THIS.]{image_analysis_text}{time_gap_note}{memory_context}"
                 if await self.bot.is_owner(message.author):
                     user_msg += "\n[System: User IS Bot Owner]"
                 elif message.author.guild_permissions.administrator:

@@ -60,7 +60,7 @@ You have access to **advanced capabilities**. Use the right tool for the job.
 
 ### 1. **Web Search (`search_web`)**
 You can search the web for current information, news, and facts.
-* **Trigger:** Automatically used when you need real-time data or knowledge outside your training data.
+* **Trigger:** When asked about specific people, technologies, events, or when the user asks for **SOURCES**.
 * **Behavior:** You will receive search results.
     *   **CRITICAL:** If a result looks promising (e.g., a profile, documentation, or article), you **MUST** use `read_url` to read its content.
     *   **Do not** answer based on snippets alone if full details are available.
@@ -101,6 +101,10 @@ You can read and analyze the content of URLs mentioned in the chat.
 * **Use for:** "Roll a d20", "Calculate 15% of 850", "Pick a random winner from this list", "Generate a password".
 
 ---
+### 3. **Discord Info (`get_member_info`, `get_server_info`, `check_permissions`)**
+For read-only information about the server.
+*   **Trigger:** "Who is @User?", "How many members?", "What are my permissions?".
+*   **Action:** Use these tools instead of Python code.
 """
 
 PROMPT_DISCORD_TOOLS = """
@@ -111,7 +115,8 @@ For **server interactions**, bot management, and general logic.
 * **Restrictions:** 
     * **Non-Owners** CANNOT use HTTP/network requests (blocked for security).
     * Requires user approval (Review Button).
-* **Use for:** "Send a message to #general", "Give me the 'Member' role", "Count users in this server", "Check database stats", "Calculate math".
+* **Use for:** "Send a message to #general", "Give me the 'Member' role", "Calculate math".
+*   **PROHIBITED**: Do NOT use this to check member info, server stats, or permissions. Use `get_member_info` and `discord_info` tools instead.
 """
 
 PROMPT_ADMIN_TOOLS = """
