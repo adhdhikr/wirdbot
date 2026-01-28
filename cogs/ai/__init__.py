@@ -140,8 +140,12 @@ class AICog(commands.Cog):
                     
                     if sent_message:
                          try:
-                            if len(sent_message.content) + len(status_line) < 2000:
-                                sent_message = await sent_message.edit(content=sent_message.content + status_line)
+                            # Clear "Thinking" status if present
+                            content = sent_message.content
+                            content = content.replace("-# 🧠 Thinking (Pro Model)...", "").strip()
+
+                            if len(content) + len(status_line) < 2000:
+                                sent_message = await sent_message.edit(content=(content + status_line).strip())
                             else:
                                 sent_message = await message.reply(status_line.strip())
                          except:
@@ -255,22 +259,36 @@ class AICog(commands.Cog):
 
 
             if tool_responses:
-                # Send tool outputs back to model
+                 # Show Thinking status again before sending tool results if it's the Pro model
+                 if getattr(chat_session, 'is_pro_model', False):
+                     status_text = "\n-# 🧠 Thinking (Pro Model)..."
+                     if sent_message:
+                         if "-# 🧠 Thinking (Pro Model)..." not in sent_message.content:
+                             sent_message = await sent_message.edit(content=sent_message.content + status_text)
+                     else:
+                         sent_message = await message.reply(status_text)
+
+                 # Send tool outputs back to model
                  next_response = await chat_session.send_message(
                      tool_responses 
                  )
                  return await self._process_chat_response(chat_session, next_response, message, sent_message, tool_count=tool_count, execution_logs=execution_logs)
             
             if accumulated_text.strip():
-                # Append Pro Model Footer if applicable
+                # Prep Pro Model Header if applicable
                 if getattr(chat_session, 'is_pro_model', False):
-                    accumulated_text += "\n-# Using pro model 🧠"
+                    # Check if we need to prepend or if it's already there
+                    header = "**Using pro model 🧠**\n\n"
+                    if not accumulated_text.startswith(header):
+                        accumulated_text = header + accumulated_text
 
                 # --- ATTACH SANDBOX UI ---
                 view = SandboxExecutionView(execution_logs) if execution_logs else None
 
                 if sent_message and len(sent_message.content) + len(accumulated_text) < 2000:
-                     await sent_message.edit(content=sent_message.content + "\n" + accumulated_text, view=view)
+                     # Clear "Thinking" status if present
+                     final_content = sent_message.content.replace("-# 🧠 Thinking (Pro Model)...", "").strip()
+                     await sent_message.edit(content=(final_content + "\n" + accumulated_text).strip(), view=view)
                 else:
                     chunks = safe_split_text(accumulated_text, 2000)
                     for i, chunk in enumerate(chunks):
@@ -472,6 +490,13 @@ class AICog(commands.Cog):
                 selected_model = COMPLEX_MODEL if complexity == "COMPLEX" else SIMPLE_MODEL
                 
                 logger.info(f"Smart Routing (Text+Image): {complexity} -> {selected_model}")
+
+                if selected_model == COMPLEX_MODEL:
+                    status_text = "-# 🧠 Thinking (Pro Model)..."
+                    if sent_message:
+                        sent_message = await sent_message.edit(content=sent_message.content + "\n" + status_text)
+                    else:
+                        sent_message = await message.reply(status_text)
 
                 time_gap_note = ""
                 
