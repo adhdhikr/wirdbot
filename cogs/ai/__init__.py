@@ -231,10 +231,12 @@ class AICog(commands.Cog):
                                     if match.start() == 0:
                                         new_content = new_content.lstrip()
                                         
-                                    sent_message = await sent_message.edit(content=new_content)
+                                    view = SandboxExecutionView(execution_logs) if execution_logs else None
+                                    sent_message = await sent_message.edit(content=new_content, view=view)
                                 else:
                                     # Fallback
-                                    sent_message = await sent_message.edit(content=current_content + " " + ("❌" if error_occurred else "✅"))
+                                    view = SandboxExecutionView(execution_logs) if execution_logs else None
+                                    sent_message = await sent_message.edit(content=current_content + " " + ("❌" if error_occurred else "✅"), view=view)
                              except Exception as e:
                                 logger.error(f"Failed to update tool status: {e}")
 

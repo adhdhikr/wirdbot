@@ -77,11 +77,9 @@ def execute_restricted(code: str):
     def _print(*args, **kwargs):
         print(*args, file=output_buffer, **kwargs)
     
-    # RestrictedPython usually hides 'print', so we pass it as a custom name or part of builtins?
-    # Actually safe_builtins doesn't have print. We add it.
-    env['_print_'] = UnsafePrintStub() # standard RP hook? No, explicit usage.
-    # RP transforms `print` statement (Py2) but Py3 is function.
-    # We'll just add `print` to the environment.
+    # In RestrictedPython, 'print' function calls are often transformed to call '_print_'
+    # We provide our capturer for both names to be safe.
+    env['_print_'] = _print 
     env['print'] = _print
     
     # 3. Execute
@@ -91,19 +89,19 @@ def execute_restricted(code: str):
         
         # Extract likely result variables (non-underscore, non-library)
         results = {}
+        safe_keys = _get_safe_env().keys()
         for k, v in env.items():
-            if k not in _get_safe_env() and not k.startswith('_') and k != 'print':
-                if not isinstance(v, (type(math), type(random))): # Don't return modules
-                     results[k] = str(v)[:500] # Truncate vars
+            if k not in safe_keys and not k.startswith('_') and k != 'print':
+                # Don't return modules or callable functions we injected
+                if not isinstance(v, (type(math), type(random))): 
+                     results[k] = str(v)[:1000] # Truncate vars
                      
         return output, results
         
     except Exception as e:
-        return None, f"Runtime Error: {e}"
+        return output_buffer.getvalue(), f"Runtime Error: {e}"
 
-class UnsafePrintStub:
-    def _call_print(self, *objects, **kwargs):
-        pass
+# Remove the unused UnsafePrintStub class
 
 async def run_python_script(code: str) -> str:
     """
