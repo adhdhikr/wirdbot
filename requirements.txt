@@ -1,7 +1,8 @@
 nextcord
-aiosqlite==0.20.0
-aiohttp==3.9.1
-python-dotenv==1.0.0
-pytz==2024.1
-onami
-google-generativeai
+google-genai
+python-dotenv
+aiohttp
+aiofiles
+duckduckgo-search
+beautifulsoup4
+RestrictedPython
