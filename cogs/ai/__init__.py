@@ -451,6 +451,7 @@ class AICog(commands.Cog):
                 # --- IMAGE ANALYSIS (PRE-ROUTING) ---
                 image_analysis_text = ""
                 att_status_msg = None
+                sent_message = None
                 
                 if message.attachments:
                     valid_exts = {'png', 'jpg', 'jpeg', 'gif', 'webp'}
