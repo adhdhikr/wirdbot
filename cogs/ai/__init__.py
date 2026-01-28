@@ -26,7 +26,7 @@ logger = logging.getLogger(__name__)
 class AICog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-        self.active_tasks = {} # Map channel_id -> asyncio.Task
+        self.active_tasks = {} # Map message_id -> asyncio.Task
         self.active_bot_messages = {} # Map channel_id -> message_id (The bot's "Thinking..." or response message)
         self.interrupt_signals = {} # Map channel_id -> interrupter_name
         self.pending_approvals = {} # Map channel_id -> CodeApprovalView
@@ -121,8 +121,12 @@ class AICog(commands.Cog):
                                 sent_message = await sent_message.edit(content=formatted_content)
                             else:
                                 sent_message = await message.reply(accumulated_text)
+                                # Register new message ID for interruption
+                                self.active_tasks[sent_message.id] = asyncio.current_task()
                         else:
                             sent_message = await message.reply(accumulated_text)
+                            # Register new message ID for interruption
+                            self.active_tasks[sent_message.id] = asyncio.current_task()
                         accumulated_text = ""
 
                     fname = fn.name
@@ -152,10 +156,16 @@ class AICog(commands.Cog):
                                 sent_message = await sent_message.edit(content=(content + status_line).strip())
                             else:
                                 sent_message = await message.reply(status_line.strip())
+                                # Register new message ID
+                                self.active_tasks[sent_message.id] = asyncio.current_task()
                          except:
                             sent_message = await message.reply(status_line.strip())
+                            # Register new message ID
+                            self.active_tasks[sent_message.id] = asyncio.current_task()
                     else:
                          sent_message = await message.reply(status_line.strip())
+                         # Register new message ID
+                         self.active_tasks[sent_message.id] = asyncio.current_task()
 
                     # --- TOOL EXECUTION LOGIC ---
                     tool_result = "Error: Unknown tool"
@@ -309,6 +319,8 @@ class AICog(commands.Cog):
                     for i, chunk in enumerate(chunks):
                         if i == 0 and not sent_message:
                              sent_message = await message.reply(chunk, view=view)
+                             # Register new message ID
+                             self.active_tasks[sent_message.id] = asyncio.current_task()
                         elif i == len(chunks) - 1:
                              # Attach view to last chunk? Or first? User usually expects it at the end of the text that referenced it.
                              # But if we have multiple chunks, putting it on the first one (reply) is better for threading.
@@ -318,8 +330,12 @@ class AICog(commands.Cog):
                                   await sent_message.edit(view=view)
                              else:
                                   sent_message = await message.reply(chunk, view=view)
+                                  self.active_tasks[sent_message.id] = asyncio.current_task()
                         else:
                              await message.channel.send(chunk)
+                             # We generally don't track intermediate chunks for cancellation as they are fire-and-forget mostly
+                             # But technically user might reply to them. 
+                             # Ideally we track the HEAD message.
 
             return None 
 
