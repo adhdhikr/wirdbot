@@ -236,14 +236,17 @@ async def get_role_info(role_id: Optional[str] = None, query: Optional[str] = No
 
 async def get_channels(mode: str = "text", category_id: Optional[str] = None, **kwargs) -> str:
     """
-    List channels in the server.
+    List channels in the server that the caller has permission to view.
     
     Args:
         mode: 'text', 'voice', 'category', or 'all'.
         category_id: Filter by category ID (optional).
     """
     guild = kwargs.get('guild')
-    if not guild: return "Error: No server context."
+    message = kwargs.get('message')
+    if not guild or not message: return "Error: No server/user context."
+    
+    author = message.author
     
     channels = guild.channels
     target_channels = []
@@ -254,6 +257,9 @@ async def get_channels(mode: str = "text", category_id: Optional[str] = None, **
              cid = int(str(category_id))
              channels = [c for c in channels if c.category_id == cid]
          except: pass
+
+    # Filter by Permissions (View Channel)
+    channels = [c for c in channels if c.permissions_for(author).view_channel]
 
     if mode == 'text':
         target_channels = [c for c in channels if isinstance(c, discord.TextChannel)]
@@ -268,10 +274,10 @@ async def get_channels(mode: str = "text", category_id: Optional[str] = None, **
     target_channels.sort(key=lambda c: c.position)
     
     if not target_channels:
-        return "No channels found matching criteria."
+        return "No accessible channels found matching criteria."
         
     # Create list
-    lines = [f"**Channels ({mode}):**"]
+    lines = [f"**Channels ({mode}) visible to {author.display_name}:**"]
     for c in target_channels[:30]: # Limit to avoid huge messages
         lines.append(f"- {c.name} (ID: {c.id})")
         

@@ -101,22 +101,29 @@ You can read and analyze the content of URLs mentioned in the chat.
 * **Use for:** "Roll a d20", "Calculate 15% of 850", "Pick a random winner from this list", "Generate a password".
 
 ---
-### 3. **Discord Info (`get_member_info`, `get_server_info`, `check_permissions`, `get_channels`, `get_role_info`)**
-For read-only information about the server.
-*   **Trigger:** "Who is @User?", "List all voice channels", "What permissions does 'Mod' have?".
-*   **Action:** Use these tools instead of Python code.
+### 3. **Discord Info Tools (PREFERRED for Reading)**
+*   `get_server_info`, `get_member_info`, `get_channel_info`, `check_permissions`, `get_role_info`, `get_channels`.
+*   **Trigger:** "Who is @User?", "List voice channels", "What is the server created date?".
+*   **Rule:** ALWAYS use these tools for gathering information. **Do NOT use Python code** for simple inspection.
+
+### 4. **Image Analysis (`analyze_image`)**
+* **Trigger:** When a user asks a question about an image.
+* **Behavior:** Re-analyzes the image with your specific question.
 """
 
 PROMPT_DISCORD_TOOLS = """
-### 3. **Discord Code Execution (`execute_discord_code`)**
-For **server interactions**, bot management, and general logic.
+### 5. **Administrative Actions (`execute_discord_code`)**
+**⚠️ HEAVY TOOL - USE SPARINGLY**
+For **server interactions**, **state modification**, and **complex logic** ONLY.
 * **Environment:** Runs LOCALLY on the bot server.
-* **Access:** Full access to `bot`, `ctx`, `db`, `channel`, `guild`.
 * **Restrictions:** 
     * **Non-Owners** CANNOT use HTTP/network requests (blocked for security).
     * Requires user approval (Review Button).
-* **Use for:** "Send a message to #general", "Give me the 'Member' role", "Calculate math".
-*   **PROHIBITED**: Do NOT use this to check member info, server stats, or permissions. Use `get_member_info` and `discord_info` tools instead.
+* **Use ONLY for:**
+    *   Sending messages ("Send a message to #general").
+    *   Modifying roles/users ("Give me the 'Member' role", "Ban user").
+    *   Complex calculations not solvable by tools.
+*   **PROHIBITED:** Do NOT use this tool just to *read* data (members, channels, roles) if an Info Tool exists.
 """
 
 PROMPT_ADMIN_TOOLS = """
