@@ -581,12 +581,20 @@ class AICog(commands.Cog):
                 forced_pro = any(kw in msg_content_lower for kw in force_pro_keywords)
                 forced_flash = any(kw in msg_content_lower for kw in force_flash_keywords)
                 
+                # Skip router for short messages without images (default to Flash)
+                has_image = bool(image_analysis_text)
+                is_short_message = len(message.content) < 100
+                
                 if forced_pro:
                     complexity = "COMPLEX"
                     logger.info(f"User Forced PRO Model: {message.author}")
                 elif forced_flash:
                      complexity = "SIMPLE"
                      logger.info(f"User Forced FLASH Model: {message.author}")
+                elif is_short_message and not has_image:
+                    # Skip router for short simple messages
+                    complexity = "SIMPLE"
+                    logger.info(f"Skipping router for short message ({len(message.content)} chars, no image)")
                 else:
                     complexity = await evaluate_complexity(combined_context)
                      
