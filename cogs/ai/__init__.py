@@ -496,6 +496,10 @@ class AICog(commands.Cog):
         """
         Runs the full chat session. Designed to be a cancellable task.
         """
+        # Track the active bot message ID for this task
+        current_task = asyncio.current_task()
+        tracked_msg_ids = [] # Keep local list to cleanup later
+        
         async with message.channel.typing():
             try:
                 # 1. Retrieve or Build History
@@ -520,7 +524,11 @@ class AICog(commands.Cog):
                     
                     if target_att:
                         status_msg = await message.reply(f"🔍 Analyzing image for routing...", mention_author=False)
-                        att_status_msg = status_msg # Track to delete later if needed
+                        att_status_msg = status_msg 
+                        
+                        # Track status msg
+                        self.active_tasks[status_msg.id] = current_task
+                        tracked_msg_ids.append(status_msg.id)
                         
                         try:
                             # Use Vision Tool Logic directly or via helper? 
@@ -541,6 +549,12 @@ class AICog(commands.Cog):
                         # Cleanup status
                         try: await status_msg.delete() 
                         except: pass
+                        
+                        # Cleanup tracking for deleted message so map doesn't grow indefinitely
+                        if status_msg.id in self.active_tasks:
+                            del self.active_tasks[status_msg.id]
+                        if status_msg.id in tracked_msg_ids:
+                            tracked_msg_ids.remove(status_msg.id)
 
                 # --- SMART ROUTING ---
                 # Check for attachments first -> We now have a description!
@@ -570,12 +584,13 @@ class AICog(commands.Cog):
                 
                 logger.info(f"Smart Routing (Text+Image): {complexity} -> {selected_model}")
 
-                if selected_model == COMPLEX_MODEL:
-                    status_text = "-# 🧠 Thinking (Pro Model)..."
-                    if sent_message:
-                        sent_message = await sent_message.edit(content=sent_message.content + "\n" + status_text)
-                    else:
-                        sent_message = await message.reply(status_text)
+                # Always send a status message so the user has something to reply to for interruption/cancellation
+                status_text = "-# 🧠 Thinking (Pro Model)..." if selected_model == COMPLEX_MODEL else "-# ⚡ Thinking..."
+                sent_message = await message.reply(status_text)
+                
+                # Track main thinking message
+                self.active_tasks[sent_message.id] = current_task
+                tracked_msg_ids.append(sent_message.id)
 
                 time_gap_note = ""
                 
@@ -593,6 +608,10 @@ class AICog(commands.Cog):
                     
                     if target_att:
                         att_status_msg = await message.reply(f"-# 👀 Analyzing `{target_att.filename}` with `{selected_model}`...")
+                        
+                        self.active_tasks[att_status_msg.id] = current_task
+                        tracked_msg_ids.append(att_status_msg.id)
+                        
                         try:
                              # Wait for vision tool
                              description = await analyze_image(target_att.url, model_name=selected_model)
@@ -686,12 +705,16 @@ class AICog(commands.Cog):
                 logger.error(f"Error in AI handler: {e}")
                 traceback.print_exc()
                 await message.reply("❌ Error processing request. Check logs.")
+            except Exception as e:
+                logger.error(f"Error in AI handler: {e}")
+                traceback.print_exc()
+                await message.reply("❌ Error processing request. Check logs.")
             finally:
                 # Cleanup task from map
-                if message.channel.id in self.active_tasks:
-                    del self.active_tasks[message.channel.id]
-                if message.channel.id in self.active_bot_messages:
-                    del self.active_bot_messages[message.channel.id]
+                # Crucial: Remove ALL entries pointing to this task
+                keys_to_remove = [k for k, v in self.active_tasks.items() if v == current_task]
+                for k in keys_to_remove:
+                    del self.active_tasks[k]
 
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message):
@@ -731,7 +754,7 @@ class AICog(commands.Cog):
         
         if should_interrupt:
             logging.info(f"Interrupting active task in channel {message.channel.id}")
-            task = self.active_tasks[message.channel.id]
+            task = self.active_tasks[target_msg_id] # target_msg_id is defined in the check above
             
             # Signal interruption source
             self.interrupt_signals[message.channel.id] = message.author.display_name
@@ -744,26 +767,12 @@ class AICog(commands.Cog):
             
             if not task.done():
                 task.cancel()
-            # Wait a tiny bit? No, proceed immediately.
             
-        # Create new task ONLY if we aren't already running one (unless we just interrupted it)
-        # Note: If we didn't interrupt, and a task is running, we usually IGNORE the new message 
-        # (or queue it, but here we just ignore non-reply messages during generation as per "make it so its ONLY when... it cancels... other than that continue")
-        # Wait, if we DON'T interrupt, do we ignore? 
-        # "make it so it can analyze images... also... cancel... only if necessary"
-        # User said: "make it so its ONLY when the bots ongoing message is replied to that it cancels. not on any message in the channel."
-        # This implies: If it's NOT a reply, do NOT cancel. And presumably do NOT start a new task if one is busy?
-        # Or does it mean "Don't cancel, just run in parallel"? 
-        # Typically Discord bots can't handle well parallel chats in same channel context.
-        # I'll assume: If busy and NOT a reply-interrupt, IGNORE the message (don't trigger).
-        
-        if message.channel.id in self.active_tasks and not self.active_tasks[message.channel.id].done():
-            if not should_interrupt:
-                logger.info(f"Ignoring message in {message.channel.id} as AI is busy and this is not a cancellation reply.")
-                return 
-
-        task = asyncio.create_task(self.run_chat(message))
-        self.active_tasks[message.channel.id] = task
+        # --- CONCURRENCY ---
+        # We ALWAYS spawn a new task. We do not block.
+        # User said: "if i reply that means interrupt and respond to this"
+        # So we cancel the old one (above) and Start the new one (below).
+        asyncio.create_task(self.run_chat(message))
 
 def setup(bot):
     bot.add_cog(AICog(bot))
