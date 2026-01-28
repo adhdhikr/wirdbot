@@ -375,10 +375,17 @@ class AICog(commands.Cog):
     async def _process_chat_turn(self, chat_session, content, message: discord.Message, sent_message=None):
         """Initial Trigger for the chat loop."""
         try:
-            response = await chat_session.send_message(content)
             return await self._process_chat_response(chat_session, response, message, existing_message=sent_message, execution_logs=[])
         except Exception as e:
             logger.error(f"AI Turn Error: {e}")
+            if sent_message:
+                try:
+                    await sent_message.edit(content=f"❌ AI Error: {e}")
+                except: pass
+            else:
+                 try:
+                    await message.reply(f"❌ AI Error: {e}")
+                 except: pass
             return f"❌ AI Error: {e}"
 
     async def _build_history(self, message: discord.Message) -> list:
@@ -743,14 +750,20 @@ class AICog(commands.Cog):
         
         should_interrupt = False
         
-        if message.channel.id in self.active_tasks:
-            # Check if it's a reply
-            if message.reference and message.reference.message_id:
-                # Check if it references the current active bot message
-                active_msg_id = self.active_bot_messages.get(message.channel.id)
-                if active_msg_id and message.reference.message_id == active_msg_id:
-                    should_interrupt = True
-                    logger.info(f"Targeted Interruption detected: {message.author} replied to active bot message.")
+        if message.reference and message.reference.message_id:
+             target_msg_id = message.reference.message_id
+             if target_msg_id in self.active_tasks:
+                 task = self.active_tasks[target_msg_id]
+                 if not task.done():
+                     should_interrupt = True
+                     logger.info(f"Targeted Interruption detected: {message.author} replied to active bot message {target_msg_id}.")
+                 else:
+                     # cleanup
+                     del self.active_tasks[target_msg_id]
+        
+        # Debug Log
+        if message.reference and not should_interrupt:
+             logger.debug(f"Reply detected but NO interruption. RefMsgID: {message.reference.message_id} | ActiveTasksKeys: {list(self.active_tasks.keys())}")
         
         if should_interrupt:
             logging.info(f"Interrupting active task in channel {message.channel.id}")
