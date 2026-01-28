@@ -137,7 +137,10 @@ async def run_python_script(code: str) -> str:
             response += f"**Output:**\n```\n{output[:1000]}\n```\n"
             
         if isinstance(results_or_error, dict) and results_or_error:
-             response += f"**Result Variables:**\n```\n{results_or_error}\n```"
+             response += "**Result Variables:**\n```python\n"
+             for k, v in results_or_error.items():
+                 response += f"{k} = {v}\n"
+             response += "```"
 
         if not response:
              return "✅ Script ran successfully (No output or variables)."

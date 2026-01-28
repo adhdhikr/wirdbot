@@ -199,11 +199,19 @@ class SandboxExecutionView(discord.ui.View):
             code = log['code']
             output = log['output']
             
-            msg = f"**Execution #{log['index']}**\n\n**Code:**\n```python\n{code}\n```\n**Output:**\n```\n{output}\n```"
+            # Formatting for the ephemeral message
+            msg = f"### 🚀 Execution #{log['index']}\n\n"
+            msg += f"**Code:**\n```python\n{code}\n```\n"
+            
+            if output:
+                # Output already contains headers like **Output:** and **Result Variables:** from the tool
+                msg += output
+            else:
+                msg += "✅ *Script ran with no output.*"
             
             if len(msg) > 2000:
                 f = discord.File(io.StringIO(msg), filename=f"execution_{log['index']}.txt")
-                await interaction.response.send_message("📄 Output too long, attached.", file=f, ephemeral=True)
+                await interaction.response.send_message("📄 **Full log is too long, attached below.**", file=f, ephemeral=True)
             else:
                 await interaction.response.send_message(msg, ephemeral=True)
         return callback

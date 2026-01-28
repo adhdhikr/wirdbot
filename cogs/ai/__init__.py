@@ -394,12 +394,9 @@ class AICog(commands.Cog):
             role = "model" if msg.author.id == self.bot.user.id else "user"
             content = msg.content
             
-            if msg.reference:
-                try:
-                    if msg.reference.resolved and isinstance(msg.reference.resolved, discord.Message):
-                        ref_author = msg.reference.resolved.author.display_name
-                        content = f"[Replying to {ref_author}] {content}"
-                except: pass
+            # Removed [Replying to ...] prefix as it causes the model to mimic the pattern
+            # Reference context is usually sufficient for Gemini 3 models
+            pass
 
             if role == "user":
                 text = f"User {msg.author.display_name} ({msg.author.id}): {content}"
