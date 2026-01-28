@@ -309,30 +309,28 @@ class AICog(commands.Cog):
 
                 # --- ATTACH SANDBOX UI ---
                 view = SandboxExecutionView(execution_logs) if execution_logs else None
+                
+                # Helper: Strip status lines (Thinking/Generating/etc) from content
+                def strip_status(content: str) -> str:
+                    # Remove status lines: anything starting with -# or <a: (animated emoji)
+                    lines = content.split('\n')
+                    cleaned = [l for l in lines if not (l.strip().startswith('-#') or l.strip().startswith('<a:'))]
+                    return '\n'.join(cleaned).strip()
 
                 if sent_message and len(sent_message.content) + len(accumulated_text) < 2000:
-                     # Clear "Thinking" status if present
-                     final_content = sent_message.content.replace("-# 🧠 Thinking (Pro Model)...", "").replace("-# ⚡ Thinking...", "").strip()
-                     await sent_message.edit(content=(final_content + "\n" + accumulated_text).strip(), view=view)
+                     final_content = strip_status(sent_message.content)
+                     await sent_message.edit(content=(final_content + "\n" + accumulated_text).strip() if final_content else accumulated_text, view=view)
                 else:
                     chunks = safe_split_text(accumulated_text, 1900) # Safety margin
                     
                     for i, chunk in enumerate(chunks):
                         if i == 0:
                             if sent_message:
-                                # Update the initial "Thinking..." message with the first chunk
-                                final_content = sent_message.content.replace("-# 🧠 Thinking (Pro Model)...", "").replace("-# ⚡ Thinking...", "").strip()
-                                # If the thinking message plus chunk is too big, just replace content entirely or error?
-                                # safe_split logic usually ensures chunk is < 2000. 
-                                # But final_content might be non-empty (previous tool outputs).
-                                if len(final_content) + len(chunk) < 2000:
-                                     await sent_message.edit(content=(final_content + "\n" + chunk).strip())
+                                final_content = strip_status(sent_message.content)
+                                combined = (final_content + "\n" + chunk).strip() if final_content else chunk
+                                if len(combined) < 2000:
+                                     await sent_message.edit(content=combined)
                                 else:
-                                     # Edge case: Previous content + new chunk > 2000. 
-                                     # We should probably have appended previous content to accumulated_text before splitting? 
-                                     # Too complex for now. Just edit with chunk and hope previous content wasn't important context? 
-                                     # Or just send new message.
-                                     # Let's try to edit, if fail, send new.
                                      await sent_message.edit(content=chunk)
                             else:
                                 sent_message = await message.reply(chunk)
@@ -340,19 +338,13 @@ class AICog(commands.Cog):
                         
                         else:
                             # Subsequent chunks are always new messages
-                            # Register them for tracking too? User might reply to them to cancel?
-                            # Yes, safer.
                             msg_chunk = await message.channel.send(chunk)
                             self.active_tasks[msg_chunk.id] = asyncio.current_task()
                             
-                            if i == len(chunks) - 1:
-                                # Last chunk gets the view
-                                if view:
-                                    await msg_chunk.edit(view=view)
+                            if i == len(chunks) - 1 and view:
+                                await msg_chunk.edit(view=view)
                     
-                    # If we only had 1 chunk and it was i=0, we didn't attach view if sent_message existed?
-                    # logic above: i=0 just edits sent_message.
-                    # We need to attach view to the LAST message sent/edited.
+                    # Attach view to first message if only 1 chunk
                     if len(chunks) == 1 and sent_message and view:
                         await sent_message.edit(view=view)
 
@@ -603,7 +595,7 @@ class AICog(commands.Cog):
                 logger.info(f"Smart Routing (Text+Image): {complexity} -> {selected_model}")
 
                 # Always send a status message so the user has something to reply to for interruption/cancellation
-                status_text = "-# 🧠 Thinking (Pro Model)..." if selected_model == COMPLEX_MODEL else "-# ⚡ Thinking..."
+                status_text = "-# 🧠 Thinking (Pro Model)..." if selected_model == COMPLEX_MODEL else "<a:loading:1466182602317889576> Generating..."
                 sent_message = await message.reply(status_text)
                 
                 # Track main thinking message
@@ -785,12 +777,15 @@ class AICog(commands.Cog):
                 try:
                     target_msg = await message.channel.fetch_message(target_msg_id)
                     if target_msg and target_msg.author.id == self.bot.user.id:
-                        content = target_msg.content
-                        # Remove any "Thinking" status lines
-                        content = content.replace("-# 🧠 Thinking (Pro Model)...", "").strip()
-                        content = content.replace("-# ⚡ Thinking...", "").strip()
-                        # Remove any tool calling status lines
-                        content = re.sub(r"\n?-#\s*🛠️\s*Calling\s*`[^`]+`.*?\.\.\.", "", content)
+                        # Strip status lines: -# prefixed, <a: animated emojis, tool calling lines
+                        lines = target_msg.content.split('\n')
+                        cleaned = [l for l in lines if not (
+                            l.strip().startswith('-#') or 
+                            l.strip().startswith('<a:') or
+                            '🛠️ Calling' in l
+                        )]
+                        content = '\n'.join(cleaned).strip()
+                        
                         if content:
                             await target_msg.edit(content=content + f"\n🛑 **Interrupted by {message.author.display_name}**", view=None)
                         else:
