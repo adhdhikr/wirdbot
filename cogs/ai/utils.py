@@ -30,13 +30,19 @@ class ScopedBot:
         return None
         
     async def fetch_user(self, user_id):
-
         guild = self._bot.get_guild(self._guild_id)
         if guild:
-             member = await guild.fetch_member(user_id)
-             if member: return member
+             try:
+                 member = await guild.fetch_member(user_id)
+                 if member: return member
+             except:
+                 pass
         raise discord.Forbidden("Cannot fetch users outside this server.")
 
+    async def fetch_guild(self, guild_id):
+        if guild_id == self._guild_id:
+            return await self._bot.fetch_guild(guild_id)
+        raise discord.Forbidden("Cannot fetch other guilds.")
 
     async def application_info(self):
         raise discord.Forbidden("Restricted.")

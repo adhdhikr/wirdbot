@@ -21,7 +21,7 @@ from .web import WEB_TOOLS, search_web, read_url
 from .vision import VISION_TOOLS, analyze_image
 from .memory import MEMORY_TOOLS
 from .sandbox import SANDBOX_TOOLS
-from .discord_info import DISCORD_INFO_TOOLS, get_server_info, get_member_info, get_channel_info, check_permissions
+from .discord_info import DISCORD_INFO_TOOLS, get_server_info, get_member_info, get_channel_info, check_permissions, get_role_info, get_channels
 
 # All custom function-calling tools
 CUSTOM_TOOLS = QURAN_TOOLS + ADMIN_TOOLS + USER_TOOLS + BOT_MANAGEMENT_TOOLS + DISCORD_TOOLS + DISCORD_INFO_TOOLS + WEB_TOOLS + VISION_TOOLS + MEMORY_TOOLS + SANDBOX_TOOLS
@@ -64,4 +64,6 @@ __all__ = [
     'get_member_info',
     'get_channel_info',
     'check_permissions',
+    'get_role_info',
+    'get_channels',
 ]

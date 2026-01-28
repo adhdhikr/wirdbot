@@ -197,10 +197,94 @@ async def check_permissions(user_id: Optional[str] = None, channel_id: Optional[
         summary += "**Key Allowed:**\n" + ", ".join([p for p in allowed if p in key_perms]) + "\n"
         
     return summary
+    return summary
+
+async def get_role_info(role_id: Optional[str] = None, query: Optional[str] = None, **kwargs) -> str:
+    """
+    Get detailed info about a role.
+    """
+    guild = kwargs.get('guild')
+    if not guild: return "Error: No server context."
+    
+    target = None
+    if role_id:
+        try:
+             rid = int(str(role_id).strip('<@&>'))
+             target = guild.get_role(rid)
+        except: pass
+        
+    if not target and query:
+         target = next((r for r in guild.roles if query.lower() in r.name.lower()), None)
+         
+    if not target: return "Role not found."
+
+    perms = [p[0].replace('_', ' ').title() for p in target.permissions if p[1]]
+    perm_summary = "All" if target.permissions.administrator else ", ".join(perms[:10])
+    if len(perms) > 10 and not target.permissions.administrator: perm_summary += f" (+{len(perms)-10} more)"
+
+    info = [
+        f"**Role:** {target.name} (ID: {target.id})",
+        f"**Color:** {target.color}",
+        f"**Position:** {target.position}",
+        f"**Hoisted:** {'Yes' if target.hoist else 'No'}",
+        f"**Mentionable:** {'Yes' if target.mentionable else 'No'}",
+        f"**Members:** {len(target.members)}",
+        f"**Created:** {target.created_at.strftime('%Y-%m-%d')}",
+        f"**Permissions:** {perm_summary}"
+    ]
+    return "\n".join(info)
+
+async def get_channels(mode: str = "text", category_id: Optional[str] = None, **kwargs) -> str:
+    """
+    List channels in the server.
+    
+    Args:
+        mode: 'text', 'voice', 'category', or 'all'.
+        category_id: Filter by category ID (optional).
+    """
+    guild = kwargs.get('guild')
+    if not guild: return "Error: No server context."
+    
+    channels = guild.channels
+    target_channels = []
+    
+    # Filter by Category if provided
+    if category_id:
+         try:
+             cid = int(str(category_id))
+             channels = [c for c in channels if c.category_id == cid]
+         except: pass
+
+    if mode == 'text':
+        target_channels = [c for c in channels if isinstance(c, discord.TextChannel)]
+    elif mode == 'voice':
+        target_channels = [c for c in channels if isinstance(c, discord.VoiceChannel)]
+    elif mode == 'category':
+        target_channels = [c for c in channels if isinstance(c, discord.CategoryChannel)]
+    else:
+        target_channels = channels
+
+    # Sort by position
+    target_channels.sort(key=lambda c: c.position)
+    
+    if not target_channels:
+        return "No channels found matching criteria."
+        
+    # Create list
+    lines = [f"**Channels ({mode}):**"]
+    for c in target_channels[:30]: # Limit to avoid huge messages
+        lines.append(f"- {c.name} (ID: {c.id})")
+        
+    if len(target_channels) > 30:
+        lines.append(f"... and {len(target_channels)-30} more.")
+        
+    return "\n".join(lines)
 
 DISCORD_INFO_TOOLS = [
     get_server_info,
     get_member_info,
     get_channel_info,
-    check_permissions
+    check_permissions,
+    get_role_info,
+    get_channels
 ]

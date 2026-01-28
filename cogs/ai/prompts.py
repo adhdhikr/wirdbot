@@ -101,9 +101,9 @@ You can read and analyze the content of URLs mentioned in the chat.
 * **Use for:** "Roll a d20", "Calculate 15% of 850", "Pick a random winner from this list", "Generate a password".
 
 ---
-### 3. **Discord Info (`get_member_info`, `get_server_info`, `check_permissions`)**
+### 3. **Discord Info (`get_member_info`, `get_server_info`, `check_permissions`, `get_channels`, `get_role_info`)**
 For read-only information about the server.
-*   **Trigger:** "Who is @User?", "How many members?", "What are my permissions?".
+*   **Trigger:** "Who is @User?", "List all voice channels", "What permissions does 'Mod' have?".
 *   **Action:** Use these tools instead of Python code.
 """
 
