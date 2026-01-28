@@ -310,11 +310,12 @@ class AICog(commands.Cog):
                 # --- ATTACH SANDBOX UI ---
                 view = SandboxExecutionView(execution_logs) if execution_logs else None
                 
-                # Helper: Strip status lines (Thinking/Generating/etc) from content
+                # Helper: Strip only thinking/generating status (not tool calls)
                 def strip_status(content: str) -> str:
-                    # Remove status lines: anything starting with -# or <a: (animated emoji)
                     lines = content.split('\n')
-                    cleaned = [l for l in lines if not (l.strip().startswith('-#') or l.strip().startswith('<a:'))]
+                    cleaned = [l for l in lines if not (
+                        '🧠 Thinking' in l or 'loading:' in l
+                    )]
                     return '\n'.join(cleaned).strip()
 
                 if sent_message and len(sent_message.content) + len(accumulated_text) < 2000:
@@ -595,7 +596,7 @@ class AICog(commands.Cog):
                 logger.info(f"Smart Routing (Text+Image): {complexity} -> {selected_model}")
 
                 # Always send a status message so the user has something to reply to for interruption/cancellation
-                status_text = "-# 🧠 Thinking (Pro Model)..." if selected_model == COMPLEX_MODEL else "<a:loading:1466182602317889576> Generating..."
+                status_text = "-# 🧠 Thinking (Pro Model)..." if selected_model == COMPLEX_MODEL else "-# <a:loading:1466182602317889576> Generating..."
                 sent_message = await message.reply(status_text)
                 
                 # Track main thinking message
@@ -777,12 +778,10 @@ class AICog(commands.Cog):
                 try:
                     target_msg = await message.channel.fetch_message(target_msg_id)
                     if target_msg and target_msg.author.id == self.bot.user.id:
-                        # Strip status lines: -# prefixed, <a: animated emojis, tool calling lines
+                        # Strip only thinking/generating status (not tool calls)
                         lines = target_msg.content.split('\n')
                         cleaned = [l for l in lines if not (
-                            l.strip().startswith('-#') or 
-                            l.strip().startswith('<a:') or
-                            '🛠️ Calling' in l
+                            '🧠 Thinking' in l or 'loading:' in l
                         )]
                         content = '\n'.join(cleaned).strip()
                         
