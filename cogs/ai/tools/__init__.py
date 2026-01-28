@@ -8,6 +8,7 @@ This package organizes all AI tools into categorical modules:
 - bot_management: Bot status management
 - discord_actions: Discord code execution with security
 - web: Web search and URL reading
+- user_space: Personal file storage and management
 
 Built-in Gemini capabilities are also configured here:
 - Code execution (sandboxed) - Disabled for Gemini 3 Preview
@@ -22,9 +23,23 @@ from .vision import VISION_TOOLS, analyze_image
 from .memory import MEMORY_TOOLS
 from .sandbox import SANDBOX_TOOLS
 from .discord_info import DISCORD_INFO_TOOLS, get_server_info, get_member_info, get_channel_info, check_permissions, get_role_info, get_channels
+from .user_space import (
+    USER_SPACE_TOOLS,
+    save_to_space,
+    upload_attachment_to_space,
+    save_message_attachments,
+    read_from_space,
+    list_space,
+    get_space_info,
+    delete_from_space,
+    zip_files,
+    unzip_file,
+    share_file,
+    get_file_for_discord,
+)
 
 # All custom function-calling tools
-CUSTOM_TOOLS = QURAN_TOOLS + ADMIN_TOOLS + USER_TOOLS + BOT_MANAGEMENT_TOOLS + DISCORD_TOOLS + DISCORD_INFO_TOOLS + WEB_TOOLS + VISION_TOOLS + MEMORY_TOOLS + SANDBOX_TOOLS
+CUSTOM_TOOLS = QURAN_TOOLS + ADMIN_TOOLS + USER_TOOLS + BOT_MANAGEMENT_TOOLS + DISCORD_TOOLS + DISCORD_INFO_TOOLS + WEB_TOOLS + VISION_TOOLS + MEMORY_TOOLS + SANDBOX_TOOLS + USER_SPACE_TOOLS
 
 __all__ = [
     # Tool lists
@@ -39,6 +54,7 @@ __all__ = [
     'VISION_TOOLS',
     'MEMORY_TOOLS',
     'SANDBOX_TOOLS',
+    'USER_SPACE_TOOLS',
     
     # Individual tools for dispatcher
     'lookup_quran_page',
@@ -66,4 +82,16 @@ __all__ = [
     'check_permissions',
     'get_role_info',
     'get_channels',
+    # User space tools
+    'save_to_space',
+    'upload_attachment_to_space',
+    'save_message_attachments',
+    'read_from_space',
+    'list_space',
+    'get_space_info',
+    'delete_from_space',
+    'zip_files',
+    'unzip_file',
+    'share_file',
+    'get_file_for_discord',
 ]

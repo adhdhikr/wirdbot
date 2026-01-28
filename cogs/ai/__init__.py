@@ -194,6 +194,7 @@ class AICog(commands.Cog):
                             'guild_id': message.guild.id if message.guild else None,
                             'channel': message.channel,
                             'message': message,
+                            'user_id': message.author.id,  # For user space tools
                             'is_owner': await self.bot.is_owner(message.author),
                             'is_admin': message.author.guild_permissions.administrator if message.guild else False,
                             'model_name': getattr(chat_session, 'model_name', 'gemini-3-flash-preview'),
@@ -216,6 +217,26 @@ class AICog(commands.Cog):
                                     'output': str(tool_result)
                                 })
                                 arg_str += f" [#{exec_index}]"
+                            
+                            # --- HANDLE FILE SHARING ---
+                            if fname == 'share_file' and str(tool_result).startswith('__SHARE_FILE__:'):
+                                # Parse the share file response
+                                parts = str(tool_result).split(':')
+                                if len(parts) >= 3:
+                                    share_filename = parts[1]
+                                    try:
+                                        from .tools.user_space import get_file_for_discord
+                                        file_data = await get_file_for_discord(share_filename, user_id=message.author.id)
+                                        if file_data:
+                                            file_buffer, filename = file_data
+                                            discord_file = discord.File(file_buffer, filename=filename)
+                                            await message.channel.send(f"📎 **{filename}**", file=discord_file)
+                                            tool_result = f"✅ File `{filename}` sent successfully."
+                                        else:
+                                            tool_result = f"❌ Failed to prepare file for sending."
+                                    except Exception as e:
+                                        logger.error(f"File sharing error: {e}")
+                                        tool_result = f"❌ Error sending file: {e}"
                                 
                         except Exception as e:
                             tool_result = f"Error execution {fname}: {e}"

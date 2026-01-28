@@ -7,6 +7,7 @@ from db.repositories.completion import CompletionRepository
 from db.repositories.session import SessionRepository
 from db.repositories.cache import CacheRepository
 from db.repositories.memory import MemoryRepository
+from db.repositories.file_storage import FileStorageRepository
 import os
 
 
@@ -36,6 +37,7 @@ class Database:
         self.sessions = SessionRepository(self.connection)
         self.cache = CacheRepository(self.connection)
         self.memories = MemoryRepository(self.connection)
+        self.file_storage = FileStorageRepository(self.connection)
         self.__class__._initialized = True
 
     async def connect(self):
