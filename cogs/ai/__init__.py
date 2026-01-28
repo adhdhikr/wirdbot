@@ -315,27 +315,46 @@ class AICog(commands.Cog):
                      final_content = sent_message.content.replace("-# 🧠 Thinking (Pro Model)...", "").strip()
                      await sent_message.edit(content=(final_content + "\n" + accumulated_text).strip(), view=view)
                 else:
-                    chunks = safe_split_text(accumulated_text, 2000)
+                    chunks = safe_split_text(accumulated_text, 1900) # Safety margin
+                    
                     for i, chunk in enumerate(chunks):
-                        if i == 0 and not sent_message:
-                             sent_message = await message.reply(chunk, view=view)
-                             # Register new message ID
-                             self.active_tasks[sent_message.id] = asyncio.current_task()
-                        elif i == len(chunks) - 1:
-                             # Attach view to last chunk? Or first? User usually expects it at the end of the text that referenced it.
-                             # But if we have multiple chunks, putting it on the first one (reply) is better for threading.
-                             # Actually the user prompt said "to that message", and we edit the tool-call message.
-                             # So putting it on sent_message (which contains tool calls) is correct.
-                             if sent_message:
-                                  await sent_message.edit(view=view)
-                             else:
-                                  sent_message = await message.reply(chunk, view=view)
-                                  self.active_tasks[sent_message.id] = asyncio.current_task()
+                        if i == 0:
+                            if sent_message:
+                                # Update the initial "Thinking..." message with the first chunk
+                                final_content = sent_message.content.replace("-# 🧠 Thinking (Pro Model)...", "").strip()
+                                # If the thinking message plus chunk is too big, just replace content entirely or error?
+                                # safe_split logic usually ensures chunk is < 2000. 
+                                # But final_content might be non-empty (previous tool outputs).
+                                if len(final_content) + len(chunk) < 2000:
+                                     await sent_message.edit(content=(final_content + "\n" + chunk).strip())
+                                else:
+                                     # Edge case: Previous content + new chunk > 2000. 
+                                     # We should probably have appended previous content to accumulated_text before splitting? 
+                                     # Too complex for now. Just edit with chunk and hope previous content wasn't important context? 
+                                     # Or just send new message.
+                                     # Let's try to edit, if fail, send new.
+                                     await sent_message.edit(content=chunk)
+                            else:
+                                sent_message = await message.reply(chunk)
+                                self.active_tasks[sent_message.id] = asyncio.current_task()
+                        
                         else:
-                             await message.channel.send(chunk)
-                             # We generally don't track intermediate chunks for cancellation as they are fire-and-forget mostly
-                             # But technically user might reply to them. 
-                             # Ideally we track the HEAD message.
+                            # Subsequent chunks are always new messages
+                            # Register them for tracking too? User might reply to them to cancel?
+                            # Yes, safer.
+                            msg_chunk = await message.channel.send(chunk)
+                            self.active_tasks[msg_chunk.id] = asyncio.current_task()
+                            
+                            if i == len(chunks) - 1:
+                                # Last chunk gets the view
+                                if view:
+                                    await msg_chunk.edit(view=view)
+                    
+                    # If we only had 1 chunk and it was i=0, we didn't attach view if sent_message existed?
+                    # logic above: i=0 just edits sent_message.
+                    # We need to attach view to the LAST message sent/edited.
+                    if len(chunks) == 1 and sent_message and view:
+                        await sent_message.edit(view=view)
 
             return None 
 

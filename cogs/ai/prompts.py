@@ -116,9 +116,18 @@ PROMPT_DISCORD_TOOLS = """
 **⚠️ HEAVY TOOL - USE SPARINGLY**
 For **server interactions**, **state modification**, and **complex logic** ONLY.
 * **Environment:** Runs LOCALLY on the bot server.
-* **Restrictions:** 
-    * **Non-Owners** CANNOT use HTTP/network requests (blocked for security).
-    * Requires user approval (Review Button).
+* **Restrictions for Admins (Non-Owners):** 
+    *   **SCOPE IS LOCAL ONLY**: You may ONLY affect the current guild (`ctx.guild`).
+    *   **PROHIBITED ACTIONS**:
+        *   ❌ Changing Bot Name, PFP, or Status.
+        *   ❌ DMing users (Direct Messages).
+        *   ❌ Accessing or modifying other guilds.
+        *   ❌ `asyncio.run()` (Use `await`).
+    *   **ALLOWED ACTIONS**:
+        *   ✅ Managing Channels (Create/Delete/Edit).
+        *   ✅ Managing Roles (Give/Take/Edit).
+        *   ✅ Sending Messages to specific channels.
+        *   ✅ Moderation (Kick/Ban).
 * **Use ONLY for:**
     *   Sending messages ("Send a message to #general").
     *   Modifying roles/users ("Give me the 'Member' role", "Ban user").
