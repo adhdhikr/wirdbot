@@ -127,23 +127,31 @@ class CodeApprovalView(discord.ui.View):
         current_content = interaction.message.content if interaction.message else "Proposed Code:"
         new_content = current_content + "\n\n❌ **Execution Cancelled by User**"
         
-        await interaction.response.edit_message(content=new_content, view=self)
+        if  interaction:
+             await interaction.response.edit_message(content=new_content, view=self)
         
-        # Resume AI Chat with refusal
-        try:
-            exec_part = types.Part(
-                function_response=types.FunctionResponse(
-                    name='execute_discord_code',
-                    response={'result': "User refused code execution."}
-                )
-            )
-            all_parts = self.other_tool_parts + [exec_part]
+        # Stop everything. Do NOT resume chat.
+        # Clean up from pending list if tracked
+        if self.message.channel.id in self.cog.pending_approvals:
+            del self.cog.pending_approvals[self.message.channel.id]
 
-            response = await self.chat_session.send_message(all_parts)
+    async def cancel_by_interruption(self, interrupter_name: str):
+        """Called programmatically when a new message interrupts the approval wait."""
+        self.value = False
+        for child in self.children:
+            child.disabled = True
             
-            await self.cog._process_chat_response(self.chat_session, response, self.message)
+        current_content = self.message.content
+        new_content = current_content + f"\n\n🛑 **Auto-Rejected: Interrupted by {interrupter_name}**"
+        
+        try:
+            await self.message.edit(content=new_content, view=self)
         except Exception as e:
-            logger.error(f"Error resuming chat after refusal: {e}")
+            logger.error(f"Failed to edit message for auto-rejection: {e}")
+            
+        # Do not resume chat.
+        if self.message.channel.id in self.cog.pending_approvals:
+            del self.cog.pending_approvals[self.message.channel.id]
 
 
 class ContinueExecutionView(discord.ui.View):

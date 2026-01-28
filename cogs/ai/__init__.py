@@ -28,6 +28,7 @@ class AICog(commands.Cog):
         self.bot = bot
         self.active_tasks = {} # Map channel_id -> asyncio.Task
         self.interrupt_signals = {} # Map channel_id -> interrupter_name
+        self.pending_approvals = {} # Map channel_id -> CodeApprovalView
         self.chat_histories = {} # Map channel_id -> list[types.Content]
         self.context_pruning_markers = {} # Map channel_id -> message_id (ignore msgs before this)
         if GEMINI_API_KEY:
@@ -163,6 +164,14 @@ class AICog(commands.Cog):
                     if fname == 'execute_discord_code':
                          pending_execution = True
                          pending_execution_code = fargs.get('code', '')
+                         
+                         # If we are about to ask for approval, we return early?
+                         # Actually, _execute_discord_code_internal handles the View.
+                         # But wait, execute_discord_code is a wrapper tool now?
+                         # Let's check tools definition.
+                         # execute_discord_code returns "Approval Required..." string usually if manual.
+                         # BUT the view is attached to the MESSAGE sent.
+                         # We need to capture that view.
                          pass 
                     
                     elif fname in self.tool_map:
@@ -252,6 +261,9 @@ class AICog(commands.Cog):
             if pending_execution:
                 ctx = await self.bot.get_context(message)
                 view = CodeApprovalView(ctx, pending_execution_code, self, chat_session, message, other_tool_parts=tool_responses)
+                
+                # Register pending approval for interruption handling
+                self.pending_approvals[message.channel.id] = view
                 
                 proposal_text = f"🤖 **Code Proposal**\nReview required for server action:"
                 if sent_message:
@@ -653,6 +665,12 @@ class AICog(commands.Cog):
             
             # Signal interruption source
             self.interrupt_signals[message.channel.id] = message.author.display_name
+            
+            # Auto-reject pending approval if exists
+            if message.channel.id in self.pending_approvals:
+                 view = self.pending_approvals.pop(message.channel.id)
+                 await view.cancel_by_interruption(message.author.display_name)
+                 logger.info(f"Auto-rejected pending code approval in {message.channel.id} due to interruption.")
             
             if not task.done():
                 task.cancel()
