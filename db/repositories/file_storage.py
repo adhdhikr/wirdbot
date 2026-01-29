@@ -28,8 +28,7 @@ class FileStorageRepository:
         file_path: str,
         file_size: int,
         mime_type: str = None,
-        description: str = None,
-        is_persistent: bool = False
+        description: str = None
     ) -> Optional[int]:
         """
         Add a file record to the database.
@@ -39,9 +38,9 @@ class FileStorageRepository:
             # Insert file record
             await self.db.execute_write(
                 """INSERT INTO user_files 
-                   (user_id, filename, original_filename, file_path, file_size, mime_type, description, is_persistent)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
-                (user_id, filename, original_filename, file_path, file_size, mime_type, description, is_persistent)
+                   (user_id, filename, original_filename, file_path, file_size, mime_type, description)
+                   VALUES (?, ?, ?, ?, ?, ?, ?)""",
+                (user_id, filename, original_filename, file_path, file_size, mime_type, description)
             )
             
             # Update storage quota
@@ -76,7 +75,7 @@ class FileStorageRepository:
         """List all files for a user, ordered by creation date."""
         return await self.db.execute_many(
             """SELECT id, filename, original_filename, file_size, mime_type, 
-                      description, is_persistent, created_at, updated_at
+                      description, created_at, updated_at
                FROM user_files 
                WHERE user_id = ? 
                ORDER BY created_at DESC""",
@@ -195,8 +194,8 @@ class FileStorageRepository:
             await self.db.execute_write(
                 """UPDATE user_storage 
                    SET total_bytes_used = total_bytes_used + ?,
-                   file_count = file_count + ?,
-                   last_updated = CURRENT_TIMESTAMP
+                       file_count = file_count + ?,
+                       last_updated = CURRENT_TIMESTAMP
                    WHERE user_id = ?""",
                 (bytes_delta, count_delta, user_id)
             )
@@ -245,12 +244,11 @@ class FileStorageRepository:
         if inactive_days is None:
             inactive_days = self.INACTIVE_DAYS
         
-        # Get files older than threshold from inactive users, AND NOT PERSISTENT
+        # Get files older than threshold from inactive users
         # A user is inactive if they have no files accessed within ACTIVE_USER_THRESHOLD_DAYS
         return await self.db.execute_many(
             """SELECT f.* FROM user_files f
                WHERE datetime(f.last_accessed) < datetime('now', ? || ' days')
-               AND f.is_persistent = 0
                AND f.user_id NOT IN (
                    SELECT DISTINCT user_id FROM user_files 
                    WHERE datetime(last_accessed) > datetime('now', ? || ' days')

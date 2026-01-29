@@ -57,7 +57,6 @@ async def save_to_space(
     filename: str,
     file_type: str = None,
     title: str = None,
-    forever: bool = False,
     **kwargs
 ) -> str:
     """
@@ -71,7 +70,6 @@ async def save_to_space(
         filename: Name for the file (include extension like "code.py" or "notes.txt")
         file_type: Optional override for file type ("txt", "docx", "json", "csv", "py", "java", etc.)
         title: Optional title for Word documents
-        forever: If True, marks the file to be saved permanently (ignores auto-cleanup).
     
     Returns:
         Success message with file info, or error message
@@ -140,8 +138,7 @@ async def save_to_space(
             original_filename=filename,
             file_path=str(file_path),
             file_size=file_size,
-            mime_type=mime_type,
-            is_persistent=forever
+            mime_type=mime_type
         )
         
         # Get updated storage info
@@ -149,16 +146,13 @@ async def save_to_space(
         
         # Build detailed response
         action = "Overwrote" if overwriting else "Saved"
-        if forever:
-            action += " (Forever)"
-            
         content_preview = content[:100].replace('\n', ' ').strip()
         if len(content) > 100:
             content_preview += "..."
         
         response = f"✅ **{action}:** `{filename}`\n"
         response += f"📄 **Type:** {actual_type.upper()} | **Size:** {_format_size(file_size)}\n"
-        response += f" **Preview:** `{content_preview}`\n"
+        response += f"� **Preview:** `{content_preview}`\n"
         response += f"📁 **Storage:** {usage['usage_percent']:.1f}% used ({_format_size(usage['total_bytes_used'])} / {_format_size(usage['max_storage'])})"
         
         return response
@@ -171,7 +165,6 @@ async def save_to_space(
 async def upload_attachment_to_space(
     attachment_url: str,
     filename: str = None,
-    forever: bool = False,
     **kwargs
 ) -> str:
     """
@@ -183,7 +176,6 @@ async def upload_attachment_to_space(
     Args:
         attachment_url: The URL of the Discord attachment to download
         filename: Optional custom filename; uses original if not provided
-        forever: If True, marks the file to be saved permanently.
     
     Returns:
         Success message with file info, or error message
@@ -249,32 +241,24 @@ async def upload_attachment_to_space(
             original_filename=filename,
             file_path=str(file_path),
             file_size=file_size,
-            mime_type=mime_type,
-            is_persistent=forever
+            mime_type=mime_type
         )
         
         usage = await repo.get_storage_usage(user_id)
         
-        msg = f"✅ **Uploaded:** `{filename}` ({_format_size(file_size)})"
-        if forever:
-            msg += " (Forever)"
-        msg += f"\n📁 Space used: {usage['usage_percent']:.1f}%"
-        return msg
+        return f"✅ **Uploaded:** `{filename}` ({_format_size(file_size)})\n📁 Space used: {usage['usage_percent']:.1f}%"
         
     except Exception as e:
         logger.error(f"Failed to upload attachment: {e}")
         return f"❌ Error uploading file: {e}"
 
 
-async def save_message_attachments(forever: bool = False, **kwargs) -> str:
+async def save_message_attachments(**kwargs) -> str:
     """
     Save all attachments from the user's current message to their personal space.
     
     Use this when a user sends files and wants to store them. This automatically
     detects and saves all files attached to the message.
-    
-    Args:
-        forever: If True, marks files to be saved permanently.
     
     Returns:
         Success message listing saved files, or error if no attachments found
@@ -297,8 +281,7 @@ async def save_message_attachments(forever: bool = False, **kwargs) -> str:
         result = await upload_attachment_to_space(
             attachment_url=att.url,
             filename=att.filename,
-            user_id=user_id,
-            forever=forever
+            user_id=user_id
         )
         results.append(f"• **{att.filename}**: {result}")
     

@@ -13,8 +13,6 @@ DEBUG_GUILD_IDS = [int(gid.strip()) for gid in os.getenv("DEBUG_GUILD_IDS", "").
 
 TOOL_LOG_CHANNEL_ID = int(os.getenv("TOOL_LOG_CHANNEL_ID")) if os.getenv("TOOL_LOG_CHANNEL_ID") and os.getenv("TOOL_LOG_CHANNEL_ID").isdigit() else None
 MAX_TOOL_CALLS = int(os.getenv("MAX_TOOL_CALLS", "15"))
-MAX_OUTPUT_TOKENS = int(os.getenv("MAX_OUTPUT_TOKENS", "4000"))
-
 
 MAX_PAGES = 604
 MIN_PAGES_PER_DAY = 1
