@@ -101,6 +101,9 @@ async def _execute_discord_code_internal(bot, code: str, ctx_data: dict) -> str:
     import utils
     from database import db
     
+    # Import ScopedDatabase from our new scoped_db module
+    from .scoped_db import ScopedDatabase
+    
     env = {
         'discord': discord,
         'nextcord': discord,  # Allow explicit nextcord usage
@@ -110,7 +113,6 @@ async def _execute_discord_code_internal(bot, code: str, ctx_data: dict) -> str:
         'tafsir': utils.tafsir, 
         'translation': utils.translation,
         'quran': utils.quran,
-        'db': db,
         'config': __import__('config')
     }
     
@@ -125,12 +127,15 @@ async def _execute_discord_code_internal(bot, code: str, ctx_data: dict) -> str:
     if is_owner:
         env['bot'] = bot
         env['_bot'] = bot
+        env['db'] = db # Full DB access for owner
     else:
         guild = ctx_data.get('guild') or ctx_data.get('_guild')
         if guild:
             scoped_bot = ScopedBot(bot, guild.id)
             env['bot'] = scoped_bot
             env['_bot'] = scoped_bot
+            # Scoped DB Access
+            env['db'] = ScopedDatabase(db, guild.id)
         else:
             return "Error: Cannot execute code outside of a server context."
     

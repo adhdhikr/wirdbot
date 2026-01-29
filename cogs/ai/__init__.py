@@ -10,7 +10,7 @@ import time
 import inspect
 import traceback
 import re
-from config import GEMINI_API_KEY, API_BASE_URL, MAX_TOOL_CALLS, TOOL_LOG_CHANNEL_ID
+from config import GEMINI_API_KEY, API_BASE_URL, MAX_TOOL_CALLS, TOOL_LOG_CHANNEL_ID, MAX_OUTPUT_TOKENS
 from database import db
 from .prompts import SYSTEM_PROMPT, get_system_prompt
 from .views import CodeApprovalView, ContinueExecutionView, SandboxExecutionView
@@ -732,7 +732,8 @@ class AICog(commands.Cog):
                     config=types.GenerateContentConfig(
                         tools=allowed_tools,
                         system_instruction=current_system_prompt,
-                        automatic_function_calling=dict(disable=True) 
+                        automatic_function_calling=dict(disable=True),
+                        max_output_tokens=MAX_OUTPUT_TOKENS 
                     )
                 )
                 # Store flag for footer and tool context
@@ -796,6 +797,41 @@ class AICog(commands.Cog):
                 except: pass
 
         if not (is_mention or is_reply): return
+
+        # --- INTERRUPTION LOGIC ---
+        # Check if the user is replying "stop", "cancel", etc. to a bot message
+        if is_reply and message.reference and message.reference.message_id:
+            ref_id = message.reference.message_id
+            
+            # Check keywords
+            stop_keywords = {'stop', 'cancel', 'halt', 'end', 'shush', 'quiet', 'shut up'}
+            cleaned_content = message.content.lower().strip().rstrip('!.?')
+            
+            if cleaned_content in stop_keywords:
+                # Check if this message ID is in active tasks
+                # We track the bot's response message ID in active_tasks
+                # But when user replies, they reply to the bot's message.
+                
+                # Check directly if the referenced message is a task we are tracking
+                task = self.active_tasks.get(ref_id)
+                if task and not task.done():
+                    logger.info(f"Interruption triggered by {message.author} on msg {ref_id}")
+                    task.cancel()
+                    self.interrupt_signals[message.channel.id] = message.author.display_name
+                    
+                    try:
+                        await message.add_reaction("🛑")
+                    except: pass
+                    return # Stop processing this message
+                
+                # Also check pending approvals
+                if message.channel.id in self.pending_approvals:
+                    view = self.pending_approvals[message.channel.id]
+                    # verify if the reply is to the approval message? 
+                    # Simplify: if "stop" is sent in channel while approval pending, cancel it.
+                    # Or stricter: must be reply.
+                    # For now, let's just stick to the main generation task via ref_id
+                    pass
 
         logger.info(f"AI Triggered by {message.author.display_name}")
         
