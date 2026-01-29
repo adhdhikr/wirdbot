@@ -29,6 +29,7 @@ from .user_space import (
     upload_attachment_to_space,
     save_message_attachments,
     read_from_space,
+    extract_pdf_images,
     list_space,
     get_space_info,
     delete_from_space,

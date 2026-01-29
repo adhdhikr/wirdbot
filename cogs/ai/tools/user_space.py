@@ -51,6 +51,7 @@ async def _get_file_repo():
 # UPLOAD & SAVE TOOLS
 # ============================================================================
 
+
 async def save_to_space(
     content: str,
     filename: str,
@@ -291,16 +292,16 @@ async def save_message_attachments(**kwargs) -> str:
 # READ & PROCESS TOOLS
 # ============================================================================
 
-async def read_from_space(filename: str, **kwargs) -> str:
+async def read_from_space(filename: str, extract_images: bool = False, **kwargs) -> str:
     """
     Read the contents of a file from the user's personal space.
     
-    For PDF files, extracts the text content.
-    For text files, returns the raw content.
-    For other files, returns file info.
+    For PDF files, extracts text content. Set extract_images=True to also
+    extract and save images in the order they appear.
     
     Args:
         filename: Name of the file to read
+        extract_images: For PDFs, also extract images and show them in order
     
     Returns:
         File contents or error message
@@ -327,10 +328,42 @@ async def read_from_space(filename: str, **kwargs) -> str:
         ext = file_path.suffix.lower()
         
         if ext == '.pdf':
-            content = await read_pdf(str(file_path))
-            return f"📄 **Contents of `{filename}`:**\n\n{content}"
+            if extract_images:
+                # Use ordered extraction with images
+                from .files.pdf_reader import read_pdf_ordered
+                user_dir = _get_user_dir(user_id)
+                result = await read_pdf_ordered(str(file_path), str(user_dir))
+                
+                if "error" in result:
+                    return f"❌ Error reading PDF: {result['error']}"
+                
+                # Add images to database
+                for img in result.get('images', []):
+                    img_path = Path(img['path'])
+                    if img_path.exists():
+                        await repo.add_file(
+                            user_id=user_id,
+                            filename=img['filename'],
+                            original_filename=img['filename'],
+                            file_path=img['path'],
+                            file_size=img['size_bytes'],
+                            mime_type=f"image/{img['path'].split('.')[-1]}"
+                        )
+                
+                content = result['text']
+                img_count = result.get('image_count', 0)
+                header = f"📄 **Contents of `{filename}` (with {img_count} images):**\n\n"
+                
+                if img_count > 0:
+                    header += f"💡 Images extracted: use `analyze_image` on filenames like `{result['images'][0]['filename']}`\n\n"
+                
+                return header + content
+            else:
+                # Text only
+                content = await read_pdf(str(file_path))
+                return f"📄 **Contents of `{filename}`:**\n\n{content}"
         
-        elif ext in ['.txt', '.md', '.json', '.csv', '.py', '.js', '.html', '.css']:
+        elif ext in ['.txt', '.md', '.json', '.csv', '.py', '.js', '.html', '.css', '.java', '.c', '.cpp', '.h']:
             async with aiofiles.open(file_path, 'r', encoding='utf-8') as f:
                 content = await f.read()
             
@@ -354,6 +387,84 @@ async def read_from_space(filename: str, **kwargs) -> str:
     except Exception as e:
         logger.error(f"Failed to read file: {e}")
         return f"❌ Error reading file: {e}"
+
+
+async def extract_pdf_images(filename: str, **kwargs) -> str:
+    """
+    Extract images from a PDF file and save them to user's space.
+    
+    Use this when:
+    - A PDF contains diagrams, charts, or scanned pages
+    - The text extraction returned "no extractable text"
+    - User wants to analyze images in the PDF
+    
+    After extracting, use analyze_image on the extracted images.
+    
+    Args:
+        filename: Name of the PDF file in user's space
+    
+    Returns:
+        List of extracted images with filenames
+    """
+    user_id = kwargs.get('user_id')
+    if not user_id:
+        return "Error: Could not determine user ID"
+    
+    try:
+        repo = await _get_file_repo()
+        
+        file_info = await repo.get_file(user_id, filename)
+        if not file_info:
+            return f"❌ File not found: `{filename}`"
+        
+        file_path = Path(file_info['file_path'])
+        if not file_path.exists():
+            return f"❌ File missing from storage"
+        
+        if not filename.lower().endswith('.pdf'):
+            return f"❌ Not a PDF file: `{filename}`"
+        
+        # Import the extraction function
+        from .files.pdf_reader import extract_pdf_images as _extract_images
+        
+        # Extract images to user's directory
+        user_dir = _get_user_dir(user_id)
+        images = await _extract_images(str(file_path), str(user_dir))
+        
+        if not images:
+            return f"📄 No images found in `{filename}`"
+        
+        if "error" in images[0]:
+            return f"❌ Error extracting images: {images[0]['error']}"
+        
+        # Add extracted images to the file database
+        for img in images:
+            img_path = Path(img['path'])
+            if img_path.exists():
+                size = img_path.stat().st_size
+                mime_type = f"image/{img.get('path', '').split('.')[-1]}"
+                
+                await repo.add_file(
+                    user_id=user_id,
+                    filename=img['filename'],
+                    original_filename=img['filename'],
+                    file_path=img['path'],
+                    file_size=size,
+                    mime_type=mime_type
+                )
+        
+        # Format response
+        result = f"🖼️ **Extracted {len(images)} images from `{filename}`:**\n\n"
+        for img in images:
+            result += f"• `{img['filename']}` (Page {img['page']}, {img['width']}×{img['height']})\n"
+        
+        result += f"\n💡 **Tip:** Use `analyze_image` or `read_from_space` on these images to read their contents."
+        
+        return result
+        
+    except Exception as e:
+        logger.error(f"Failed to extract PDF images: {e}")
+        return f"❌ Error extracting images: {e}"
 
 
 # ============================================================================
@@ -745,6 +856,7 @@ USER_SPACE_TOOLS = [
     upload_attachment_to_space,
     save_message_attachments,
     read_from_space,
+    extract_pdf_images,
     list_space,
     get_space_info,
     delete_from_space,

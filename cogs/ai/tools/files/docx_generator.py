@@ -22,11 +22,11 @@ except ImportError:
     logger.warning("python-docx not installed. Word doc creation will be unavailable.")
 
 try:
-    from latex2mathml.converter import convert as latex_to_mathml
-    LATEX_AVAILABLE = True
+    from math2docx import add_math
+    MATH2DOCX_AVAILABLE = True
 except ImportError:
-    LATEX_AVAILABLE = False
-    logger.warning("latex2mathml not installed. LaTeX equations will be plain text.")
+    MATH2DOCX_AVAILABLE = False
+    logger.warning("math2docx not installed. LaTeX equations will be plain text.")
 
 
 # Regex patterns for LaTeX
@@ -81,7 +81,7 @@ def _create_doc_sync(
         title_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
     
     # Process content
-    if convert_latex and LATEX_AVAILABLE:
+    if convert_latex and MATH2DOCX_AVAILABLE:
         _add_content_with_latex(doc, content)
     else:
         # Simple paragraph-based addition
@@ -97,126 +97,111 @@ def _create_doc_sync(
     return output_path
 
 
+# Regex patterns for Markdown
+BOLD_PATTERN = re.compile(r'\*\*(.+?)\*\*')
+ITALIC_PATTERN = re.compile(r'\*(.+?)\*')
+
 def _add_content_with_latex(doc: Document, content: str):
     """
-    Add content to document, converting LaTeX equations.
-    
-    Note: python-docx doesn't have native equation support, so we use
-    a workaround: LaTeX is converted to a readable format and styled differently.
-    For true OMML equations, more complex XML manipulation would be needed.
+    Add content to document, converting LaTeX equations using math2docx.
+    Handles basic Markdown-style lists, headings, and mixed inline/display math.
     """
-    # Split by paragraphs
-    paragraphs = content.split('\n\n')
+    # Split by lines to handle list items correctly
+    lines = content.split('\n')
     
-    for para_text in paragraphs:
-        if not para_text.strip():
+    for line in lines:
+        line = line.strip()
+        if not line:
             continue
         
-        # Check for display math ($$...$$)
-        if '$$' in para_text:
-            parts = DISPLAY_MATH_PATTERN.split(para_text)
-            para = doc.add_paragraph()
-            
-            is_math = False
-            for i, part in enumerate(parts):
-                if i % 2 == 1:  # This is a math part
-                    # Add equation as formatted text
-                    run = para.add_run(f'\n[Equation: {part.strip()}]\n')
-                    run.italic = True
-                    run.font.size = Pt(11)
-                else:
-                    if part.strip():
-                        para.add_run(part)
-        
-        # Check for inline math ($...$)
-        elif '$' in para_text:
-            para = doc.add_paragraph()
-            parts = INLINE_MATH_PATTERN.split(para_text)
-            
-            for i, part in enumerate(parts):
-                if i % 2 == 1:  # This is a math part
-                    run = para.add_run(part)
-                    run.italic = True
-                    run.font.name = 'Cambria Math'
-                else:
-                    if part:
-                        para.add_run(part)
-        
+        # Check for Headings
+        if line.startswith('#'):
+            level = len(line.split(' ')[0])
+            if level <= 6:
+                text = line[level:].strip()
+                doc.add_heading(text, level=level)
+                continue
+
+        # Check for list items
+        if line.startswith(('* ', '- ')):
+            para = doc.add_paragraph(style='List Bullet')
+            line = line[2:].strip()
         else:
-            # Regular paragraph
-            doc.add_paragraph(para_text.strip())
-
-
-async def create_word_doc_with_latex(
-    sections: List[dict],
-    output_path: str,
-    title: str = None
-) -> str:
-    """
-    Create a structured Word document with sections.
-    
-    Args:
-        sections: List of dicts with 'heading', 'level', 'content' keys
-        output_path: Where to save the .docx file
-        title: Optional document title
-    
-    Returns:
-        Path to created file or error message
-    
-    Example:
-        sections = [
-            {'heading': 'Problem 1', 'level': 1, 'content': 'Solve $x^2 + 2x + 1 = 0$'},
-            {'heading': 'Solution', 'level': 2, 'content': 'Using quadratic formula...'},
-        ]
-    """
-    if not DOCX_AVAILABLE:
-        return "Error: python-docx is not installed."
-    
-    try:
-        loop = asyncio.get_running_loop()
-        result = await loop.run_in_executor(
-            None, _create_structured_doc_sync, sections, output_path, title
-        )
-        return result
-    except Exception as e:
-        logger.error(f"Failed to create structured Word doc: {e}")
-        return f"Error creating Word document: {e}"
-
-
-def _create_structured_doc_sync(
-    sections: List[dict],
-    output_path: str,
-    title: str = None
-) -> str:
-    """Synchronous structured document creation."""
-    doc = Document()
-    
-    # Add title
-    if title:
-        title_para = doc.add_heading(title, level=0)
-        title_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    
-    # Add sections
-    for section in sections:
-        heading = section.get('heading')
-        level = section.get('level', 1)
-        content = section.get('content', '')
+            para = doc.add_paragraph()
+            
+        # 1. Split by Display Math ($$...$$) first
+        parts = DISPLAY_MATH_PATTERN.split(line)
         
-        if heading:
-            doc.add_heading(heading, level=min(level, 9))
-        
-        if content:
-            if LATEX_AVAILABLE:
-                _add_content_with_latex(doc, content)
+        for i, part in enumerate(parts):
+            if i % 2 == 1:
+                # This is a Display Math part ($$...$$)
+                _add_math_run(para, part.strip())
             else:
-                doc.add_paragraph(content)
+                # This is a Text part (might contain inline math $...$)
+                if not part:
+                    continue
+                    
+                # 2. Split text part by Inline Math ($...$)
+                inline_parts = INLINE_MATH_PATTERN.split(part)
+                for j, subpart in enumerate(inline_parts):
+                    if j % 2 == 1:
+                        # This is an Inline Math part ($...$)
+                        _add_math_run(para, subpart.strip())
+                    else:
+                        # Plain text segment - now process for Markdown Formatting
+                        if subpart:
+                            _add_formatted_text(para, subpart)
+
+
+def _add_formatted_text(para, text: str):
+    """
+    Parses text for Markdown bold (**) and italic (*).
+    Adds runs to the paragraph with appropriate formatting.
+    """
+    # 3. Split by Bold (**...**)
+    bold_parts = BOLD_PATTERN.split(text)
     
-    # Ensure directory exists
-    os.makedirs(os.path.dirname(output_path), exist_ok=True)
-    
-    # Save
-    doc.save(output_path)
-    return output_path
+    for k, bold_part in enumerate(bold_parts):
+        if k % 2 == 1:
+            # This is BOLD text
+            run = para.add_run(bold_part)
+            run.bold = True
+        else:
+            # Non-bold text (might contain italics)
+            if not bold_part:
+                continue
+                
+            # 4. Split by Italic (*...*)
+            italic_parts = ITALIC_PATTERN.split(bold_part)
+            for m, italic_part in enumerate(italic_parts):
+                if m % 2 == 1:
+                    # This is ITALIC text
+                    run = para.add_run(italic_part)
+                    run.italic = True
+                else:
+                    # Plain text
+                    if italic_part:
+                        para.add_run(italic_part)
+
+
+def _add_math_run(para, latex_str: str):
+    """Helper to safely add a math run to a paragraph."""
+    try:
+        # Pre-process LaTeX to fix known math2docx issues
+        # Fix: \vec causes XML errors (opening and ending tag mismatch)
+        # Replacing with \mathbf which is visually similar and stable
+        safe_latex = latex_str.replace(r'\vec', r'\mathbf')
+        
+        add_math(para, safe_latex)
+    except Exception as e:
+        # Fallback for failed rendering
+        logger.warning(f"Failed to render equation '{latex_str}': {e}")
+        run = para.add_run(f'[{latex_str}]')
+        run.italic = True
+        run.font.name = 'Cambria Math'
+
+
+
 
 
 async def create_word_doc_bytes(
@@ -226,9 +211,6 @@ async def create_word_doc_bytes(
 ) -> Optional[BytesIO]:
     """
     Create a Word document and return as bytes (for Discord upload).
-    
-    Returns:
-        BytesIO object containing the document, or None on error
     """
     if not DOCX_AVAILABLE:
         return None
@@ -256,7 +238,7 @@ def _create_doc_bytes_sync(
         title_para = doc.add_heading(title, level=0)
         title_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
     
-    if convert_latex and LATEX_AVAILABLE:
+    if convert_latex and MATH2DOCX_AVAILABLE:
         _add_content_with_latex(doc, content)
     else:
         for para_text in content.split('\n\n'):

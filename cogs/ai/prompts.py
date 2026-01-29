@@ -83,11 +83,10 @@ Use these for any web research task. Work strategically:
 2. Read focused: `read_url("https://pandas.pydata.org/docs/getting_started/install.html", section="installation")`
 
 ### 2. **Image Analysis (`analyze_image`)**
-* **Trigger:** When a user asks a question about an image that current context doesn't answer.
-  * Note: You rely on *Text Descriptions* of images.
-  * The system *automatically* describes images on upload.
-  * **Only call this tool** if the initial description is missing specific details the user asked for.
-* **Behavior:** Re-analyzes the image with your specific question.
+* **Trigger:** When a user asks a question about an image, or when you need to analyze an image extracted from a PDF.
+* **Arguments:** `analyze_image(image_input, question)`
+  * `image_input`: Can be a URL **OR** a filename from user space (e.g. `doc_p1_img1.png`).
+* **Behavior:** Re-analyzes the specified image with your specific question.
 
 ### 3. **Context Management (CRITICAL)**
 *   **Search (`search_channel_history`)**:
@@ -160,15 +159,18 @@ Each user has a **personal file storage space** (1GB limit, 100MB per file).
 *   User needs files compressed into ZIP archives
 
 **Available Tools:**
-*   `save_message_attachments()`: **PREFERRED** - Automatically save all attachments from user's message
-    *   No arguments needed - detects and saves all files automatically
 *   `save_to_space(content, filename, file_type, title)`: Save generated content as a file
     *   file_type options: "txt", "docx" (Word with LaTeX support), "json", "csv"
-    *   For "docx", LaTeX equations in $...$ format are formatted as equations
+    *   For "docx", simple write equations in LaTeX format:
+        *   Inline: `$E=mc^2$`
+        *   Display: `$$\int x dx$$`
+        *   The system AUTO-DETECTS these and converts them to native Word equations.
 *   `upload_attachment_to_space(attachment_url, filename)`: Save a specific Discord attachment by URL
-*   `read_from_space(filename)`: Read file contents
-    *   PDFs are automatically text-extracted
-    *   Returns readable content for text files
+*   `read_from_space(filename, extract_images)`: Read file contents
+    *   PDFs: text extracted automatically. Set `extract_images=True` to also extract images in order.
+    *   Returns readable content for text/code files
+*   `extract_pdf_images(filename)`: Extract all images from a PDF
+    *   Use when PDF has diagrams but no text, or to get images specifically
 *   `list_space()`: List all files in user's space with sizes
 *   `get_space_info()`: Get storage usage stats
 *   `delete_from_space(filename)`: Delete a file
@@ -230,9 +232,9 @@ PROMPT_FOOTER = """
 *   **Trigger**: Use ONLY for precise calculations (math with many decimals, complex physics), high-precision data processing, or when the user explicitly asks you to "calculate" or "verify with code".
 *   **Behavior**: TRUST your internal reasoning for general questions, simple math, and logic. Do not call this tool for things you can answer accurately without it.
 *   **OUTPUT LOGIC**: 
-    *   **NO PRINTING**: Do NOT use `print()`. It often causes errors in the restricted environment.
-    *   **USE VARIABLES**: Simply assign your answers to variables (e.g., `result = 42`, `final_sum = 150.5`). 
-    *   **SYSTEM EXTRACTION**: The system automatically extracts and displays ALL local variables defined in your script.
+    *   **OUTPUT**: You can use `print()` to show your work.
+    *   **PREFERRED**: Simply assign your final answer to a variable named `result` (e.g., `result = 42`). The system automatically displays this, similar to a Python shell.
+    *   **DEBUGGING**: All local variables are captured, so you can inspect intermediate steps.
 *   **UI Reference**: Each execution is numbered in the status (e.g. `[#1]`). You can refer to "Execution 1" in your explanation. Interactive buttons appear instantly for you and the user to inspect the code/vars.
 
 ## **CODE EXECUTION RULES**

@@ -13,4 +13,4 @@ pytz
 # User file space dependencies
 PyMuPDF
 python-docx
-latex2mathml
+math2docx
