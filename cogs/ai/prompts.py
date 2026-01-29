@@ -232,8 +232,8 @@ PROMPT_FOOTER = """
 *   **Trigger**: Use ONLY for precise calculations (math with many decimals, complex physics), high-precision data processing, or when the user explicitly asks you to "calculate" or "verify with code".
 *   **Behavior**: TRUST your internal reasoning for general questions, simple math, and logic. Do not call this tool for things you can answer accurately without it.
 *   **OUTPUT LOGIC**: 
-    *   **OUTPUT**: You can use `print()` to show your work.
-    *   **PREFERRED**: Simply assign your final answer to a variable named `result` (e.g., `result = 42`). The system automatically displays this, similar to a Python shell.
+    *   **OUTPUT**: `print()` does NOT work.
+    *   **REQUIRED**: Just assign your calculations to variables. The system naturally captures and displays ALL variables you create (e.g., `x = 10`, `answer = 42`).
     *   **DEBUGGING**: All local variables are captured, so you can inspect intermediate steps.
 *   **UI Reference**: Each execution is numbered in the status (e.g. `[#1]`). You can refer to "Execution 1" in your explanation. Interactive buttons appear instantly for you and the user to inspect the code/vars.
 
