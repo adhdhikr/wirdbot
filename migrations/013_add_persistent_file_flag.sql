@@ -1,0 +1,1 @@
+ALTER TABLE user_files ADD COLUMN is_persistent BOOLEAN DEFAULT 0;

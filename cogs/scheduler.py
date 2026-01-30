@@ -1,4 +1,5 @@
 import nextcord as discord
+import asyncio
 from nextcord.ext import commands, tasks
 from database import db
 from datetime import datetime
@@ -65,6 +66,9 @@ class SchedulerCog(commands.Cog):
     @scheduler_loop.before_loop
     async def before_scheduler(self):
         await self.bot.wait_until_ready()
+        # Wait for database connection to be established
+        while not db.connection.db:
+            await asyncio.sleep(1)
 
 
 def setup(bot):
