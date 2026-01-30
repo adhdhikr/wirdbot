@@ -17,6 +17,8 @@ class DatabaseConnection:
         await self._run_migrations()
 
     async def _connect(self):
+        if self.db:
+            return
         self.db = await aiosqlite.connect(self.db_path)
         self.db.row_factory = aiosqlite.Row
         # Enable WAL mode for better concurrency

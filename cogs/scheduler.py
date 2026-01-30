@@ -54,6 +54,11 @@ class SchedulerCog(commands.Cog):
                         if not existing_session:
                             await send_daily_pages(guild_id, self.bot)
                             break
+        except ValueError as e:
+            if "no active connection" in str(e):
+                logger.warning("Scheduler loop skipped: Database connection closed (likely shutting down)")
+            else:
+                logger.error(f"ValueError in scheduler loop: {e}")
         except Exception as e:
             logger.error(f"Error in scheduler loop: {e}")
 

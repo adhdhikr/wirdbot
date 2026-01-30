@@ -76,9 +76,6 @@ async def on_interaction(interaction: discord.Interaction):
         logger.error(f"Error processing interaction: {e}")
 
 
-@bot.event
-async def on_disconnect():
-    await db.close()
 
 
 @bot.event
