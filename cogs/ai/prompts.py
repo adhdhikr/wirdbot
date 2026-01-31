@@ -134,7 +134,10 @@ For **server interactions**, **state modification**, and **complex logic** ONLY.
         *   ✅ Managing Channels (Create/Delete/Edit).
         *   ✅ Managing Roles (Give/Take/Edit).
         *   ✅ Sending Messages to specific channels.
+        *   ✅ Managing Roles (Give/Take/Edit).
+        *   ✅ Sending Messages to specific channels.
         *   ✅ Moderation (Kick/Ban).
+        *   ✅ **Database Access**: You can usage the `db` variable to query/update data, BUT it is strictly scoped to this guild.
 * **Use ONLY for:**
     *   Sending messages ("Send a message to #general").
     *   Modifying roles/users ("Give me the 'Member' role", "Ban user").

@@ -12,9 +12,43 @@ import contextlib
 import textwrap
 import traceback
 import logging
+import inspect
 from ..utils import ScopedBot
 
 logger = logging.getLogger(__name__)
+
+
+class ScopedDatabase:
+    """
+    A wrapper around the Database instance to restricting access to a specific guild_id.
+    """
+    def __init__(self, db_instance, guild_id: int):
+        self._db = db_instance
+        self._guild_id = guild_id
+
+    def __getattr__(self, name):
+        attr = getattr(self._db, name)
+        
+        if not callable(attr):
+            return attr
+            
+        # Wrap methods to check for guild_id
+        async def scoped_method(*args, **kwargs):
+            # Inspect signature to find guild_id
+            sig = inspect.signature(attr)
+            bound = sig.bind(*args, **kwargs)
+            bound.apply_defaults()
+            
+            # Check arguments for guild_id
+            if 'guild_id' in bound.arguments:
+                arg_guild_id = bound.arguments['guild_id']
+                if arg_guild_id != self._guild_id:
+                     raise PermissionError(f"❌ Security Error: You cannot access data for guild {arg_guild_id}. You are restricted to guild {self._guild_id}.")
+            
+            return await attr(*args, **kwargs)
+            
+        return scoped_method
+
 
 # Security: Blocked imports for non-owners
 BLOCKED_IMPORTS_NON_OWNER = [
@@ -110,9 +144,18 @@ async def _execute_discord_code_internal(bot, code: str, ctx_data: dict) -> str:
         'tafsir': utils.tafsir, 
         'translation': utils.translation,
         'quran': utils.quran,
-        'db': db,
         'config': __import__('config')
     }
+    
+    # Inject Database with Scope check
+    if is_owner:
+         env['db'] = db
+    else:
+         guild = ctx_data.get('guild') or ctx_data.get('_guild')
+         if guild:
+             env['db'] = ScopedDatabase(db, guild.id)
+         else:
+             env['db'] = None
     
     # Add aiohttp only for owners
     if is_owner:

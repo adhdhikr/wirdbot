@@ -38,9 +38,10 @@ from .user_space import (
     share_file,
     get_file_for_discord,
 )
+from .cloudconvert import CLOUDCONVERT_TOOLS, convert_file, check_cloudconvert_status
 
 # All custom function-calling tools
-CUSTOM_TOOLS = QURAN_TOOLS + ADMIN_TOOLS + USER_TOOLS + BOT_MANAGEMENT_TOOLS + DISCORD_TOOLS + DISCORD_INFO_TOOLS + WEB_TOOLS + VISION_TOOLS + MEMORY_TOOLS + SANDBOX_TOOLS + USER_SPACE_TOOLS
+CUSTOM_TOOLS = QURAN_TOOLS + ADMIN_TOOLS + USER_TOOLS + BOT_MANAGEMENT_TOOLS + DISCORD_TOOLS + DISCORD_INFO_TOOLS + WEB_TOOLS + VISION_TOOLS + MEMORY_TOOLS + SANDBOX_TOOLS + USER_SPACE_TOOLS + CLOUDCONVERT_TOOLS
 
 __all__ = [
     # Tool lists
@@ -56,6 +57,7 @@ __all__ = [
     'MEMORY_TOOLS',
     'SANDBOX_TOOLS',
     'USER_SPACE_TOOLS',
+    'CLOUDCONVERT_TOOLS',
     
     # Individual tools for dispatcher
     'lookup_quran_page',
@@ -95,4 +97,6 @@ __all__ = [
     'unzip_file',
     'share_file',
     'get_file_for_discord',
+    'convert_file',
+    'check_cloudconvert_status',
 ]

@@ -10,6 +10,7 @@ aiosqlite
 onami
 ddgs
 pytz
+requests
 # User file space dependencies
 PyMuPDF
 python-docx
