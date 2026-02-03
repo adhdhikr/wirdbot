@@ -125,7 +125,9 @@ async def _execute_discord_code_internal(bot, code: str, ctx_data: dict) -> str:
         # Check for potentially dangerous patterns
         dangerous_patterns = [
             'subprocess', 'os.system', 'eval(', 'exec(', '__import__',
-            'open(', 'with open', 'file(', 'input(', 'raw_input('
+            'open(', 'with open', 'file(', 'input(', 'raw_input(',
+            'bot.close', 'bot.run', 'sys.exit', 'quit(', 'exit(',
+            'bot.http', 'bot.change_presence', 'bot.user.edit'
         ]
         for pattern in dangerous_patterns:
             if pattern in code:
@@ -135,6 +137,20 @@ async def _execute_discord_code_internal(bot, code: str, ctx_data: dict) -> str:
     import utils
     from database import db
     
+    # Use ScopedBot for non-owners to restrict access to current guild only
+    if not is_owner:
+        guild_id = ctx_data.get('guild_id')
+        # If guild_id not in ctx_data, try to get from guild object
+        if not guild_id and ctx_data.get('guild'):
+            guild_id = ctx_data['guild'].id
+            
+        if not guild_id:
+             return "❌ Security Error: Cannot execute Discord code in DMs unless unrelated to guild state."
+             
+        env_bot = ScopedBot(bot, guild_id)
+    else:
+        env_bot = bot
+
     env = {
         'discord': discord,
         'nextcord': discord,  # Allow explicit nextcord usage
@@ -144,7 +160,8 @@ async def _execute_discord_code_internal(bot, code: str, ctx_data: dict) -> str:
         'tafsir': utils.tafsir, 
         'translation': utils.translation,
         'quran': utils.quran,
-        'config': __import__('config')
+        'config': __import__('config'),
+        'bot': env_bot
     }
     
     # Inject Database with Scope check

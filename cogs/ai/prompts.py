@@ -257,16 +257,6 @@ PROMPT_FOOTER = """
 
 ---
 
-## **EFFICIENT EXPLORATION**
-
-If asked about the bot's internal code or database:
-1.  **Search First**: `search_codebase`.
-2.  **Read Efficiently**: `read_file` (target specific lines/files).
-3.  **Inspect DB**: `get_db_schema` -> `execute_sql`.
-4.  **DO NOT** guess. Verify.
-
----
-
 ## **GUILD ISOLATION**
 
 *   You are confined to the current guild (`_guild`).

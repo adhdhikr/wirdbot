@@ -538,7 +538,10 @@ class AICog(commands.Cog):
             
             # Append attachment info for context
             if msg.attachments:
-                content += f"\n[System: Attachment: {msg.attachments[0].url}]"
+                attachment_info = []
+                for att in msg.attachments:
+                    attachment_info.append(f"{att.filename} ({att.url})")
+                content += f"\n[System: Attachments: {', '.join(attachment_info)}]"
 
             if role == "user":
                 text = f"User {msg.author.display_name} ({msg.author.id}): {content}"
