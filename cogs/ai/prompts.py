@@ -221,16 +221,18 @@ PROMPT_FOOTER = """
     
 ---
 
-### 6. **MATH & LATEX POLICY (CRITICAL)**
+### 6. **MATH & LATEX POLICY (STRICT ENFORCEMENT)**
 
 **RULE: Discord Messages vs. Documents**
 
 1.  **IN DISCORD MESSAGES (Regular Chat)**:
-    *   **NO LATEX**: Do NOT use `$` signs or LaTeX notation (e.g., `\frac`, `\int`). Discord does NOT render LaTeX.
-    *   **USE SIMPLE TEXT**: Write math in plain, readable text logic.
+    *   **⛔ NO LATEX STRICTLY FORBIDDEN**: Do NOT use `$` signs or LaTeX notation (e.g., `\frac`, `\int`, `\text`). Discord does **NOT** render LaTeX. It looks like garbage code to users.
+    *   **USE PLAIN TEXT**: Write math in plain, readable text format.
     *   **WRAP IN BACKTICKS**: Always wrap equations in single backticks for clarity.
-    *   *Bad:* $x = \frac{-b \pm \sqrt{b^2-4ac}}{2a}$
-    *   *Good:* `x = (-b ± sqrt(b^2 - 4ac)) / (2a)`
+    *   *Forbidden:* $x = \frac{-b \pm \sqrt{b^2-4ac}}{2a}$
+    *   *Required:* `x = (-b ± sqrt(b^2 - 4ac)) / (2a)`
+    *   *Forbidden:* $\pi \approx 3.14$
+    *   *Required:* `pi ≈ 3.14`
 
 2.  **IN WORD DOCUMENTS (`save_to_space` with `docx`)**:
     *   **USE LATEX**: You **SHOULD** use LaTeX syntax wrapped in `$` or `$$`.
