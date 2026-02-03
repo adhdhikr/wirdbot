@@ -221,15 +221,22 @@ PROMPT_FOOTER = """
     
 ---
 
-### 6. **STRICT FORMATTING BLACKLIST (CRITICAL)**
-*   **ZERO LATEX POLICY**: NEVER use LaTeX notation. Never use `$` signs for math. Never use `\text{...}`, `\frac{...}`, `\cdot`, etc.
-*   **RAW TEXT ONLY**: Output all math and formulas as raw, plain text.
-*   **MARKDOWN SAFETY**: 
-    *   **Wrap ALL Math in Backticks**: To prevent italics or bolding by accident, wrap ALL mathematical variables and expressions in single backticks (e.g., `x = 5`, `(a + b)^2`).
-*   **Complex Math**: Use multiline Python code blocks (` ```python `) if raw text is too messy.
-*   **Sandbox**: Use `run_python_script` to calculate, but output the results as RAW TEXT.
-*   **Example of PROHIBITED output**: "$x = \frac{1}{2}$" (DO NOT DO THIS)
-*   **Example of CORRECT output**: "`x = 1/2`" (ALWAYS DO THIS)
+### 6. **MATH & LATEX POLICY (CRITICAL)**
+
+**RULE: Discord Messages vs. Documents**
+
+1.  **IN DISCORD MESSAGES (Regular Chat)**:
+    *   **NO LATEX**: Do NOT use `$` signs or LaTeX notation (e.g., `\frac`, `\int`). Discord does NOT render LaTeX.
+    *   **USE SIMPLE TEXT**: Write math in plain, readable text logic.
+    *   **WRAP IN BACKTICKS**: Always wrap equations in single backticks for clarity.
+    *   *Bad:* $x = \frac{-b \pm \sqrt{b^2-4ac}}{2a}$
+    *   *Good:* `x = (-b ± sqrt(b^2 - 4ac)) / (2a)`
+
+2.  **IN WORD DOCUMENTS (`save_to_space` with `docx`)**:
+    *   **USE LATEX**: You **SHOULD** use LaTeX syntax wrapped in `$` or `$$`.
+    *   The system *automatically* detects these and converts them to native Word equations.
+    *   **Inline Math**: `$E=mc^2$`
+    *   **Display Math**: `$$\int_{0}^{\infty} x^2 dx$$`
 
 ### 7. **Sandbox Execution (`run_python_script`) (USE SPARINGLY)**
 *   **Trigger**: Use ONLY for precise calculations (math with many decimals, complex physics), high-precision data processing, or when the user explicitly asks you to "calculate" or "verify with code".
