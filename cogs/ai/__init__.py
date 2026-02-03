@@ -17,7 +17,7 @@ from .views import CodeApprovalView, ContinueExecutionView, SandboxExecutionView
 from .utils import safe_split_text, ScopedBot
 
 # Import tools from the new package
-from .tools import CUSTOM_TOOLS, ADMIN_TOOLS, DISCORD_TOOLS, execute_discord_code, analyze_image
+from .tools import CUSTOM_TOOLS, ADMIN_TOOLS, DISCORD_TOOLS, BOT_MANAGEMENT_TOOLS, execute_discord_code, analyze_image
 from .tools.memory import fetch_user_memory_context
 from .router import evaluate_complexity, SIMPLE_MODEL, COMPLEX_MODEL
 
@@ -538,10 +538,7 @@ class AICog(commands.Cog):
             
             # Append attachment info for context
             if msg.attachments:
-                attachment_info = []
-                for att in msg.attachments:
-                    attachment_info.append(f"{att.filename} ({att.url})")
-                content += f"\n[System: Attachments: {', '.join(attachment_info)}]"
+                content += f"\n[System: Attachment: {msg.attachments[0].url}]"
 
             if role == "user":
                 text = f"User {msg.author.display_name} ({msg.author.id}): {content}"
@@ -702,9 +699,10 @@ class AICog(commands.Cog):
                 
                 if not (is_admin or is_owner):
                     # Remove Restricted Tools
-                    # We exclude all ADMIN_TOOLS and specifically execute_discord_code
-                    # We allow search_channel_history (which is in DISCORD_TOOLS)
-                    restricted_funcs = [t.__name__ for t in ADMIN_TOOLS] + ['execute_discord_code']
+                    # We exclude all ADMIN_TOOLS (SQL/File Read), DISCORD Execution, and BOT MANAGEMENT (Status)
+                    restricted_funcs = [t.__name__ for t in ADMIN_TOOLS] + \
+                                       [t.__name__ for t in BOT_MANAGEMENT_TOOLS] + \
+                                       ['execute_discord_code']
                     
                     # self.all_tools contains raw Python functions (Client-side tools)
                     allowed_tools = [t for t in self.all_tools if t.__name__ not in restricted_funcs]
