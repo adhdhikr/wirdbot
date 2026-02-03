@@ -134,9 +134,13 @@ async def _execute_discord_code_internal(bot, code: str, ctx_data: dict) -> str:
                 return f"❌ Security Error: `{pattern}` is not allowed for non-owners."
 
     # Build execution environment
-    import utils
+    import utils  # This imports cogs.ai.utils
     from database import db
-    
+    try:
+        from ..utils import ScopedBot
+    except ImportError:
+        from cogs.ai.utils import ScopedBot
+
     # Use ScopedBot for non-owners to restrict access to current guild only
     if not is_owner:
         guild_id = ctx_data.get('guild_id')

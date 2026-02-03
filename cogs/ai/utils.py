@@ -17,6 +17,14 @@ class ScopedBot:
         
         return getattr(self._bot, name)
 
+    def __repr__(self):
+        return f"<ScopedBot guild_id={self._guild_id} wrapper>"
+
+    def __dir__(self):
+        d = set(dir(self._bot))
+        forbidden = {'guilds', 'users', 'voice_clients', 'dm_channels', 'private_channels'}
+        return list(d - forbidden)
+
     def get_guild(self, guild_id):
         if guild_id == self._guild_id:
             return self._bot.get_guild(guild_id)
