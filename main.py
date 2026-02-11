@@ -120,6 +120,7 @@ def load_extensions():
     bot.load_extension('onami')
     cogs_dir = Path(__file__).parent / "cogs"
     
+    # Load top-level cog files
     for cog_file in cogs_dir.glob("*.py"):
         if cog_file.stem.startswith("_"):
             continue
@@ -130,6 +131,18 @@ def load_extensions():
             logger.info(f"Loaded extension: {cog_name}")
         except Exception as e:
             logger.error(f"Failed to load extension {cog_name}: {e}")
+    
+    # Load cog packages (subdirectories with __init__.py)
+    for cog_dir in cogs_dir.iterdir():
+        if cog_dir.is_dir() and not cog_dir.stem.startswith("_"):
+            init_file = cog_dir / "__init__.py"
+            if init_file.exists():
+                cog_name = f"cogs.{cog_dir.stem}"
+                try:
+                    bot.load_extension(cog_name)
+                    logger.info(f"Loaded extension: {cog_name}")
+                except Exception as e:
+                    logger.error(f"Failed to load extension {cog_name}: {e}")
 
 
 if __name__ == "__main__":

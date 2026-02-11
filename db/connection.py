@@ -17,14 +17,8 @@ class DatabaseConnection:
         await self._run_migrations()
 
     async def _connect(self):
-        if self.db:
-            return
         self.db = await aiosqlite.connect(self.db_path)
         self.db.row_factory = aiosqlite.Row
-        # Enable WAL mode for better concurrency
-        await self.db.execute("PRAGMA journal_mode=WAL;")
-        # Set a busy timeout to wait for locks to clear (5 seconds)
-        await self.db.execute("PRAGMA busy_timeout=5000;")
 
     async def close(self):
         if self.db:
@@ -81,15 +75,35 @@ class DatabaseConnection:
         await self.db.commit()
 
     async def execute_one(self, query: str, params: tuple = ()):
-        async with self.db.execute(query, params) as cursor:
-            row = await cursor.fetchone()
-            return dict(row) if row else None
+        try:
+            async with self.db.execute(query, params) as cursor:
+                row = await cursor.fetchone()
+                return dict(row) if row else None
+        except Exception as e:
+            logger.warning(f"Database operation failed, attempting reconnection: {e}")
+            await self._connect()
+            async with self.db.execute(query, params) as cursor:
+                row = await cursor.fetchone()
+                return dict(row) if row else None
 
     async def execute_many(self, query: str, params: tuple = ()):
-        async with self.db.execute(query, params) as cursor:
-            rows = await cursor.fetchall()
-            return [dict(row) for row in rows]
+        try:
+            async with self.db.execute(query, params) as cursor:
+                rows = await cursor.fetchall()
+                return [dict(row) for row in rows]
+        except Exception as e:
+            logger.warning(f"Database operation failed, attempting reconnection: {e}")
+            await self._connect()
+            async with self.db.execute(query, params) as cursor:
+                rows = await cursor.fetchall()
+                return [dict(row) for row in rows]
 
     async def execute_write(self, query: str, params: tuple = ()):
-        await self.db.execute(query, params)
-        await self.db.commit()
+        try:
+            await self.db.execute(query, params)
+            await self.db.commit()
+        except Exception as e:
+            logger.warning(f"Database operation failed, attempting reconnection: {e}")
+            await self._connect()
+            await self.db.execute(query, params)
+            await self.db.commit()
