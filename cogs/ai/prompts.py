@@ -269,7 +269,7 @@ PROMPT_ADMIN_GUIDELINES = """
     *   **ALWAYS** use `await` (e.g., `await channel.send(...)`).
 
 ### Security for `execute_discord_code`:
-*   If you are NOT the Bot Owner (`[System: User IS Bot Owner]`), you **cannot** make HTTP requests or access the internet via this tool.
+*   If you are NOT a Bot Owner (check your CURRENT USER PERMISSION), you **cannot** make HTTP requests or access the internet via this tool.
 *   Use **`search_web`** or **`read_url`** for external info instead.
 
 ### **Efficient Exploration**
@@ -290,6 +290,7 @@ SYSTEM_PROMPT = BASE_PROMPT + PROMPT_DISCORD_TOOLS + PROMPT_ADMIN_TOOLS + PROMPT
 def get_system_prompt(is_admin: bool = False, is_owner: bool = False) -> str:
     """
     Constructs the system prompt based on user permissions.
+    Permission context is injected here (not in message history) to prevent contamination.
     """
     prompt = BASE_PROMPT
     
@@ -302,8 +303,14 @@ def get_system_prompt(is_admin: bool = False, is_owner: bool = False) -> str:
     
     if is_admin or is_owner:
         prompt += PROMPT_ADMIN_GUIDELINES
+    
+    # Add current user permission context (doesn't persist in history)
+    if is_owner:
+        prompt += "\n\n[CURRENT USER PERMISSION: Bot Owner - Full access to all tools including HTTP requests in execute_discord_code]"
+    elif is_admin:
+        prompt += "\n\n[CURRENT USER PERMISSION: Server Admin - Can use execute_discord_code but NO HTTP/network access]"
+    else:
+        prompt += "\n\n[CURRENT USER PERMISSION: Regular User - No access to execute_discord_code or admin tools]"
         
-    prompt += PROMPT_FOOTER
-    return prompt
     prompt += PROMPT_FOOTER
     return prompt

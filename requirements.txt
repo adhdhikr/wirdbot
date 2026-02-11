@@ -15,3 +15,10 @@ requests
 PyMuPDF
 python-docx
 math2docx
+faster-whisper
+discord-ext-voice-recv
+fastapi
+uvicorn
+python-multipart
+scipy
+numpy

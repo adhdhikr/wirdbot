@@ -740,11 +740,9 @@ class AICog(commands.Cog):
                 chat.is_pro_model = (selected_model == COMPLEX_MODEL)
                 chat.model_name = selected_model
                 
+                # Don't include admin/owner status in the message content that persists in history
+                # This prevents permission info from contaminating future messages
                 user_msg = f"User {message.author.display_name} ({message.author.id}): {message.content}\n[System: THIS IS THE CURRENT MESSAGE. REPLY TO THIS.]{image_analysis_text}{time_gap_note}{memory_context}"
-                if await self.bot.is_owner(message.author):
-                    user_msg += "\n[System: User IS Bot Owner]"
-                elif message.author.guild_permissions.administrator:
-                    user_msg += "\n[System: User IS Admin]"
                 
                 logger.info(f"FINAL PROMPT to Gemini for MsgID {message.id}:\n{user_msg}\nHISTORY LEN: {len(history)}")
                 
