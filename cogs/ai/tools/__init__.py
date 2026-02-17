@@ -39,9 +39,10 @@ from .user_space import (
     get_file_for_discord,
 )
 from .cloudconvert import CLOUDCONVERT_TOOLS, convert_file, check_cloudconvert_status
+from .campaign import CAMPAIGN_TOOLS, create_campaign_tool, add_campaign_button, send_campaign, list_campaigns, get_campaign_responses
 
 # All custom function-calling tools
-CUSTOM_TOOLS = QURAN_TOOLS + ADMIN_TOOLS + USER_TOOLS + BOT_MANAGEMENT_TOOLS + DISCORD_TOOLS + DISCORD_INFO_TOOLS + WEB_TOOLS + VISION_TOOLS + MEMORY_TOOLS + SANDBOX_TOOLS + USER_SPACE_TOOLS + CLOUDCONVERT_TOOLS
+CUSTOM_TOOLS = QURAN_TOOLS + ADMIN_TOOLS + USER_TOOLS + BOT_MANAGEMENT_TOOLS + DISCORD_TOOLS + DISCORD_INFO_TOOLS + WEB_TOOLS + VISION_TOOLS + MEMORY_TOOLS + SANDBOX_TOOLS + USER_SPACE_TOOLS + CLOUDCONVERT_TOOLS + CAMPAIGN_TOOLS
 
 __all__ = [
     # Tool lists
@@ -58,6 +59,7 @@ __all__ = [
     'SANDBOX_TOOLS',
     'USER_SPACE_TOOLS',
     'CLOUDCONVERT_TOOLS',
+    'CAMPAIGN_TOOLS',
     
     # Individual tools for dispatcher
     'lookup_quran_page',
@@ -99,4 +101,10 @@ __all__ = [
     'get_file_for_discord',
     'convert_file',
     'check_cloudconvert_status',
+    # Campaign tools
+    'create_campaign_tool',
+    'add_campaign_button',
+    'send_campaign',
+    'list_campaigns',
+    'get_campaign_responses',
 ]

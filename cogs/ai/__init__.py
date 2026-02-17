@@ -115,18 +115,18 @@ class AICog(commands.Cog):
                 if fn:
                     # Flush accumulated text before running tool
                     if accumulated_text.strip():
-                        if sent_message:
-                            formatted_content = sent_message.content + "\n" + accumulated_text
-                            if len(formatted_content) < 2000:
-                                sent_message = await sent_message.edit(content=formatted_content)
+                        chunks = safe_split_text(accumulated_text, 1900)
+                        for i, chunk in enumerate(chunks):
+                            if i == 0 and sent_message:
+                                formatted_content = sent_message.content + "\n" + chunk
+                                if len(formatted_content) < 2000:
+                                    sent_message = await sent_message.edit(content=formatted_content)
+                                else:
+                                    sent_message = await message.reply(chunk)
+                                    self.active_tasks[sent_message.id] = asyncio.current_task()
                             else:
-                                sent_message = await message.reply(accumulated_text)
-                                # Register new message ID for interruption
+                                sent_message = await message.reply(chunk)
                                 self.active_tasks[sent_message.id] = asyncio.current_task()
-                        else:
-                            sent_message = await message.reply(accumulated_text)
-                            # Register new message ID for interruption
-                            self.active_tasks[sent_message.id] = asyncio.current_task()
                         accumulated_text = ""
 
                     fname = fn.name
@@ -305,6 +305,27 @@ class AICog(commands.Cog):
 
 
             if tool_responses:
+                 # Flush any remaining text before handling tool responses
+                 if accumulated_text.strip():
+                    chunks = safe_split_text(accumulated_text, 1900)
+                    for i, chunk in enumerate(chunks):
+                        if i == 0 and sent_message:
+                             # Try to append to the existing message if it's the first chunk
+                             content = sent_message.content
+                             if len(content) + len(chunk) < 2000:
+                                 try:
+                                     sent_message = await sent_message.edit(content=content + "\n" + chunk)
+                                 except:
+                                     sent_message = await message.reply(chunk)
+                                     self.active_tasks[sent_message.id] = asyncio.current_task()
+                             else:
+                                 sent_message = await message.reply(chunk)
+                                 self.active_tasks[sent_message.id] = asyncio.current_task()
+                        else:
+                             sent_message = await message.reply(chunk)
+                             self.active_tasks[sent_message.id] = asyncio.current_task()
+                    accumulated_text = ""
+
                  # Show Thinking status again before sending tool results if it's the Pro model
                  if getattr(chat_session, 'is_pro_model', False):
                      status_text = "\n-# 🧠 Thinking (Pro Model)..."
@@ -742,7 +763,13 @@ class AICog(commands.Cog):
                 
                 # Don't include admin/owner status in the message content that persists in history
                 # This prevents permission info from contaminating future messages
-                user_msg = f"User {message.author.display_name} ({message.author.id}): {message.content}\n[System: THIS IS THE CURRENT MESSAGE. REPLY TO THIS.]{image_analysis_text}{time_gap_note}{memory_context}"
+                guild_context = f", Guild ID: {message.guild.id}" if message.guild else ", Guild: None (DM)"
+                user_msg = (
+                    f"User {message.author.display_name} ({message.author.id}): {message.content}\n"
+                    f"[System: THIS IS THE CURRENT MESSAGE. REPLY TO THIS.]\n"
+                    f"[System Context: Current Channel ID: {message.channel.id}{guild_context}]\n"
+                    f"{image_analysis_text}{time_gap_note}{memory_context}"
+                )
                 
                 logger.info(f"FINAL PROMPT to Gemini for MsgID {message.id}:\n{user_msg}\nHISTORY LEN: {len(history)}")
                 

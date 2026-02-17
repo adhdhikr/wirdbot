@@ -6,6 +6,9 @@ from db.repositories.user import UserRepository
 from db.repositories.completion import CompletionRepository
 from db.repositories.session import SessionRepository
 from db.repositories.cache import CacheRepository
+from db.repositories.campaign import CampaignRepository
+from db.repositories.file_storage import FileStorageRepository
+from db.repositories.memory import MemoryRepository
 import os
 
 
@@ -34,6 +37,9 @@ class Database:
         self.completions = CompletionRepository(self.connection)
         self.sessions = SessionRepository(self.connection)
         self.cache = CacheRepository(self.connection)
+        self.campaigns = CampaignRepository(self.connection)
+        self.file_storage = FileStorageRepository(self.connection)
+        self.memories = MemoryRepository(self.connection)
         self.__class__._initialized = True
 
     async def connect(self):
@@ -187,6 +193,19 @@ class Database:
 
     async def get_cache_stats(self):
         return await self.cache.get_cache_stats()
+
+    # Memory methods
+    async def add_user_memory(self, user_id: int, guild_id: int, content: str):
+        return await self.memories.add_memory(user_id, guild_id, content)
+
+    async def get_user_memories(self, user_id: int, guild_id: int, limit: int = 10):
+        return await self.memories.get_memories(user_id, guild_id, limit)
+
+    async def search_user_memories(self, user_id: int, guild_id: int, search_term: str, limit: int = 5):
+        return await self.memories.search_memories(user_id, guild_id, search_term, limit)
+
+    async def delete_user_memory(self, memory_id: int, user_id: int):
+        await self.memories.delete_memory(memory_id, user_id)
 
 
 # Global singleton instance
