@@ -199,4 +199,21 @@ class Database:
 
     async def delete_user_memory(self, memory_id: int, user_id: int):
         await self.memories.delete_memory(memory_id, user_id)
+
+    # --- Low-level pass-throughs for repositories that import `db` directly ---
+
+    async def execute_write(self, query: str, params: tuple = ()):
+        """Write query pass-through to the underlying DatabaseConnection."""
+        await self.connection.execute_write(query, params)
+
+    async def execute_one(self, query: str, params: tuple = ()):
+        """Single-row read pass-through to the underlying DatabaseConnection."""
+        return await self.connection.execute_one(query, params)
+
+    async def execute_many(self, query: str, params: tuple = ()):
+        """Multi-row read pass-through to the underlying DatabaseConnection."""
+        return await self.connection.execute_many(query, params)
+
+
 db = Database()
+

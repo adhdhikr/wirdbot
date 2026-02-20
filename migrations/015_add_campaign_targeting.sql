@@ -1,4 +1,4 @@
 -- Add targeting columns to campaigns table for role/user specific targeting
-
-ALTER TABLE campaigns ADD COLUMN target_role_ids TEXT; -- JSON array of role IDs for 'roles' type
-ALTER TABLE campaigns ADD COLUMN target_user_ids TEXT; -- JSON array of user IDs for 'users' type
+-- NOTE: These columns were already included in the original CREATE TABLE in migration 014.
+-- This migration is intentionally a no-op to avoid "duplicate column name" errors.
+SELECT 1;
