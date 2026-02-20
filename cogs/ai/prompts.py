@@ -119,29 +119,25 @@ Use these for any web research task. Work strategically:
 
 PROMPT_DISCORD_TOOLS = """
 ### 5. **Administrative Actions (`execute_discord_code`)**
+**� RESTRICTED ACCESS - OWNER + WHITELISTED GUILDS**
 **⚠️ HEAVY TOOL - USE SPARINGLY**
+
+**ACCESS CONTROL:**
+- Bot Owner: Always has access
+- Server Admins: Only in guilds whitelisted by the bot owner
+- Regular Users: No access
+
 For **server interactions**, **state modification**, and **complex logic** ONLY.
-* **Environment:** Runs LOCALLY on the bot server.
-* **Restrictions for Admins (Non-Owners):** 
-    *   **SCOPE IS LOCAL ONLY**: You may ONLY affect the current guild (`ctx.guild`).
-    *   **PROHIBITED ACTIONS**:
-        *   ❌ Changing Bot Name, PFP, or Status.
-        *   ❌ DMing users (Direct Messages) outside of the guild.
-        *   ❌ Accessing or modifying other guilds.
-        *   ❌ `asyncio.run()` (Use `await`).
-    *   **ALLOWED ACTIONS**:
-        *   ✅ Managing Channels (Create/Delete/Edit).
-        *   ✅ Managing Roles (Give/Take/Edit).
-        *   ✅ Sending Messages to specific channels.
-        *   ✅ Managing Roles (Give/Take/Edit).
-        *   ✅ Sending Messages to specific channels.
-        *   ✅ Moderation (Kick/Ban).
-        *   ✅ **Database Access**: You can usage the `db` variable to query/update data, BUT it is strictly scoped to this guild.
+* **Environment:** Runs LOCALLY on the bot server with FULL Python access.
+* **Security:** Multi-layer protection with owner-controlled whitelist system.
 * **Use ONLY for:**
     *   Sending messages ("Send a message to #general").
-    *   Modifying roles/users ("Give me the 'Member' role", "Ban user").
-    *   Complex calculations not solvable by tools.
-*   **PROHIBITED:** Do NOT use this tool just to *read* data (members, channels, roles) if an Info Tool exists.
+    *   Managing Channels (Create/Delete/Edit).
+    *   Managing Roles (Give/Take/Edit).
+    *   Moderation (Kick/Ban).
+    *   Complex calculations not solvable by other tools.
+* **PROHIBITED:** Do NOT use this tool just to *read* data (members, channels, roles) if an Info Tool exists.
+* **Note:** Always use `await` (not `asyncio.run()`).
 """
 
 PROMPT_ADMIN_TOOLS = """
@@ -268,8 +264,10 @@ PROMPT_ADMIN_GUIDELINES = """
     *   **ALWAYS** use `await` (e.g., `await channel.send(...)`).
 
 ### Security for `execute_discord_code`:
-*   If you are NOT a Bot Owner (check your CURRENT USER PERMISSION), you **cannot** make HTTP requests or access the internet via this tool.
-*   Use **`search_web`** or **`read_url`** for external info instead.
+*   **ACCESS CONTROL:** Bot Owner always has access. Server Admins only in whitelisted guilds.
+*   **WHITELIST SYSTEM:** Owner can run `!whitelist_code [guild_id]` to enable admin access in specific guilds.
+*   If you are NOT in a whitelisted guild, you cannot use this tool.
+*   Admins should use Discord Info tools (`get_server_info`, `get_member_info`, etc.) for reading data.
 
 ### **Efficient Exploration**
 If asked about the bot's internal code or database:
@@ -286,7 +284,7 @@ If asked about the bot's internal code or database:
 
 SYSTEM_PROMPT = BASE_PROMPT + PROMPT_DISCORD_TOOLS + PROMPT_ADMIN_TOOLS + PROMPT_USER_SPACE + PROMPT_ADMIN_GUIDELINES + PROMPT_FOOTER
 
-def get_system_prompt(is_admin: bool = False, is_owner: bool = False) -> str:
+def get_system_prompt(is_admin: bool = False, is_owner: bool = False, whitelisted_guild: bool = False) -> str:
     """
     Constructs the system prompt based on user permissions.
     Permission context is injected here (not in message history) to prevent contamination.
@@ -305,9 +303,12 @@ def get_system_prompt(is_admin: bool = False, is_owner: bool = False) -> str:
     
     # Add current user permission context (doesn't persist in history)
     if is_owner:
-        prompt += "\n\n[CURRENT USER PERMISSION: Bot Owner - Full access to all tools including HTTP requests in execute_discord_code]"
+        prompt += "\n\n[CURRENT USER PERMISSION: Bot Owner - Full access to all tools including execute_discord_code]"
     elif is_admin:
-        prompt += "\n\n[CURRENT USER PERMISSION: Server Admin - Can use execute_discord_code but NO HTTP/network access]"
+        if whitelisted_guild:
+            prompt += "\n\n[CURRENT USER PERMISSION: Server Admin (Whitelisted Guild) - Can use execute_discord_code and admin tools (execute_sql, search_codebase, etc.)]"
+        else:
+            prompt += "\n\n[CURRENT USER PERMISSION: Server Admin (Non-Whitelisted Guild) - Can use admin tools (execute_sql, search_codebase, etc.) but execute_discord_code is DISABLED for this server]"
     else:
         prompt += "\n\n[CURRENT USER PERMISSION: Regular User - No access to execute_discord_code or admin tools]"
         

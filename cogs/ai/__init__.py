@@ -32,6 +32,7 @@ class AICog(commands.Cog):
         self.pending_approvals = {} # Map channel_id -> CodeApprovalView
         self.chat_histories = {} # Map channel_id -> list[types.Content]
         self.context_pruning_markers = {} # Map channel_id -> message_id (ignore msgs before this)
+        self.execute_code_whitelist = set()  # Guild IDs where admins can use execute_discord_code
         if GEMINI_API_KEY:
             self.client = genai.Client(api_key=GEMINI_API_KEY)
             self.has_key = True
@@ -198,7 +199,8 @@ class AICog(commands.Cog):
                             'is_owner': await self.bot.is_owner(message.author),
                             'is_admin': message.author.guild_permissions.administrator if message.guild else False,
                             'model_name': getattr(chat_session, 'model_name', 'gemini-3-flash-preview'),
-                            'cog': self 
+                            'cog': self,
+                            'whitelisted_guild': message.guild.id in self.execute_code_whitelist if message.guild else False
                         }
                         
                         try:
@@ -715,6 +717,7 @@ class AICog(commands.Cog):
                 # --- PERMISSIONS & TOOL FILTERING ---
                 is_owner = await self.bot.is_owner(message.author)
                 is_admin = message.author.guild_permissions.administrator if message.guild else False
+                whitelisted_guild = message.guild.id in self.execute_code_whitelist if message.guild else False
                 
                 allowed_tools = list(self.all_tools)
                 
@@ -727,9 +730,12 @@ class AICog(commands.Cog):
                     
                     # self.all_tools contains raw Python functions (Client-side tools)
                     allowed_tools = [t for t in self.all_tools if t.__name__ not in restricted_funcs]
+                elif is_admin and not is_owner and not whitelisted_guild:
+                    # Admin in non-whitelisted guild: Remove execute_discord_code
+                    allowed_tools = [t for t in self.all_tools if t.__name__ != 'execute_discord_code']
 
                 # Generate Dynamic System Prompt
-                current_system_prompt = get_system_prompt(is_admin=is_admin, is_owner=is_owner)
+                current_system_prompt = get_system_prompt(is_admin=is_admin, is_owner=is_owner, whitelisted_guild=whitelisted_guild)
                 
                 # --- MEMORY INJECTION ---
                 memory_context = ""
@@ -805,8 +811,14 @@ class AICog(commands.Cog):
 
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message):
-        if not self.has_key or message.author.bot: return
+        if not self.has_key: return
         if not self.bot.user: return
+        
+        # Don't respond to own messages
+        if message.author.id == self.bot.user.id: return
+        
+        # Don't respond to other bots
+        if message.author.bot: return
 
         is_mention = self.bot.user in message.mentions
         is_reply = False
@@ -821,7 +833,10 @@ class AICog(commands.Cog):
                         is_reply = True
                 except: pass
 
-        if not (is_mention or is_reply): return
+        # Respond to DMs without requiring mention
+        is_dm = isinstance(message.channel, discord.DMChannel)
+        
+        if not (is_mention or is_reply or is_dm): return
 
         logger.info(f"AI Triggered by {message.author.display_name}")
         
@@ -885,6 +900,64 @@ class AICog(commands.Cog):
         # User said: "if i reply that means interrupt and respond to this"
         # So we cancel the old one (above) and Start the new one (below).
         asyncio.create_task(self.run_chat(message))
+
+    @commands.command(name='whitelist_code')
+    @commands.is_owner()
+    async def whitelist_code_execution(self, ctx, guild_id: int = None):
+        """
+        [Owner Only] Add a guild to the execute_discord_code whitelist for admins.
+        Usage: !whitelist_code [guild_id]
+        If no guild_id provided, uses current guild.
+        """
+        if guild_id is None:
+            if ctx.guild is None:
+                return await ctx.send("❌ Error: Not in a guild and no guild_id provided.")
+            guild_id = ctx.guild.id
+        
+        if guild_id in self.execute_code_whitelist:
+            return await ctx.send(f"⚠️ Guild `{guild_id}` is already whitelisted.")
+        
+        self.execute_code_whitelist.add(guild_id)
+        await ctx.send(f"✅ Guild `{guild_id}` added to execute_discord_code whitelist. Admins can now use this tool.")
+        logger.info(f"Guild {guild_id} whitelisted for execute_discord_code by {ctx.author}")
+
+    @commands.command(name='unwhitelist_code')
+    @commands.is_owner()
+    async def unwhitelist_code_execution(self, ctx, guild_id: int = None):
+        """
+        [Owner Only] Remove a guild from the execute_discord_code whitelist.
+        Usage: !unwhitelist_code [guild_id]
+        If no guild_id provided, uses current guild.
+        """
+        if guild_id is None:
+            if ctx.guild is None:
+                return await ctx.send("❌ Error: Not in a guild and no guild_id provided.")
+            guild_id = ctx.guild.id
+        
+        if guild_id not in self.execute_code_whitelist:
+            return await ctx.send(f"⚠️ Guild `{guild_id}` is not whitelisted.")
+        
+        self.execute_code_whitelist.remove(guild_id)
+        await ctx.send(f"✅ Guild `{guild_id}` removed from execute_discord_code whitelist. Admins can no longer use this tool.")
+        logger.info(f"Guild {guild_id} removed from whitelist by {ctx.author}")
+
+    @commands.command(name='list_whitelisted')
+    @commands.is_owner()
+    async def list_whitelisted_guilds(self, ctx):
+        """
+        [Owner Only] List all guilds whitelisted for execute_discord_code.
+        """
+        if not self.execute_code_whitelist:
+            return await ctx.send("📋 No guilds are currently whitelisted for execute_discord_code.")
+        
+        guild_list = []
+        for gid in self.execute_code_whitelist:
+            guild = self.bot.get_guild(gid)
+            name = guild.name if guild else "Unknown Guild"
+            guild_list.append(f"• `{gid}` - {name}")
+        
+        response = "📋 **Whitelisted Guilds for execute_discord_code:**\n" + "\n".join(guild_list)
+        await ctx.send(response)
 
 def setup(bot):
     bot.add_cog(AICog(bot))

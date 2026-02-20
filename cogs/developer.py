@@ -24,7 +24,10 @@ class DeveloperCog(commands.Cog):
             '_': None
         }
 
-        env.update(globals())
+        # SECURITY: Do NOT use globals() - it exposes config/secrets
+        # Instead, explicitly import only what's needed
+        # If you need a module, import it in the eval body itself
+        # env.update(globals())  # REMOVED - security risk
 
         body = self.cleanup_code(body)
         stdout = io.StringIO()
