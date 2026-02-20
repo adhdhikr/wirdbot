@@ -1,6 +1,6 @@
-import aiohttp
 import logging
-from typing import List, Dict, Any, Optional
+
+import aiohttp
 
 logger = logging.getLogger(__name__)
 
@@ -18,8 +18,6 @@ async def get_ayah(reference: str, edition: str = 'quran-uthmani') -> str:
                     data = await response.json()
                     if data.get('status') == 'OK':
                         text = data['data'].get('text', '')
-                        # If audio, returns URL? The user prompt said audio returns recitation.
-                        # We focus on text for now as per prompt "Only text editions...".
                         return text
                     else:
                         return f"Error: {data.get('data')}"
@@ -40,9 +38,6 @@ async def get_page(page: int, edition: str = 'quran-uthmani') -> str:
                 if response.status == 200:
                     data = await response.json()
                     if data.get('status') == 'OK':
-                        # The API returns 'ayahs' list in data['data']['ayahs'] usually for page endpoint?
-                        # Let's check the user provided example structure implicitly. 
-                        # Assuming standard response structure for alquran.cloud
                         result = []
                         ayahs = data['data'].get('ayahs', [])
                         for ayah in ayahs:
@@ -63,14 +58,9 @@ async def search_quran(keyword: str, surah: str = 'all', edition: str = 'quran-u
     """
     Search the Quran text.
     """
-    # URL structure: http://api.alquran.cloud/v1/search/{{keyword}}/{{surah}}/{{edition or language}}
-    # User said: If you do not specify an edition or language, all english language texts are searched.
-    # We will prefer edition if provided, else language.
     
     target = edition
     if not edition or edition == 'quran-uthmani': # If default, maybe user wants english search?
-        # But if keyword is arabic? 
-        # Let's trust the args. If user says edition='en.pickthall', use it.
         pass
 
     url = f"{API_BASE_URL}/search/{keyword}/{surah}/{target}"
@@ -84,8 +74,6 @@ async def search_quran(keyword: str, surah: str = 'all', edition: str = 'quran-u
                         matches = data['data'].get('matches', [])
                         if not matches:
                             return "No matches found."
-                        
-                        # Limit to reasonable amount
                         formatted = []
                         count = data['data'].get('count', len(matches))
                         

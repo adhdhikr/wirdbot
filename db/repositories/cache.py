@@ -1,13 +1,12 @@
-from typing import Optional, List, Dict, Any
-from db.connection import DatabaseConnection
 import json
+from typing import Any, Dict, List, Optional
+
+from db.connection import DatabaseConnection
 
 
 class CacheRepository:
     def __init__(self, db: DatabaseConnection):
         self.db = db
-
-    # Translation cache methods
     async def get_translation_cache(self, page_number: int, language: str) -> Optional[List[Dict[str, Any]]]:
         """Get cached translation data for a page and language."""
         result = await self.db.execute_one(
@@ -27,8 +26,6 @@ class CacheRepository:
                VALUES (?, ?, ?)""",
             (page_number, language, json_data)
         )
-
-    # Tafsir cache methods
     async def get_tafsir_cache(self, page_number: int, edition: str) -> Optional[List[Dict[str, Any]]]:
         """Get cached tafsir data for a page and edition."""
         result = await self.db.execute_one(
@@ -48,8 +45,6 @@ class CacheRepository:
                VALUES (?, ?, ?)""",
             (page_number, edition, json_data)
         )
-
-    # Cache management
     async def clear_translation_cache(self):
         """Clear all translation cache."""
         await self.db.execute_write("DELETE FROM translation_cache")

@@ -1,6 +1,7 @@
+from typing import List
+
 import nextcord as discord
-from nextcord.ui import View, Button, Select, TextInput, Modal
-from typing import Optional, List
+from nextcord.ui import TextInput
 
 
 class CompletionButton(discord.ui.Button):
@@ -117,8 +118,8 @@ class TafsirSelect(discord.ui.Select):
         selected_edition = self.values[0]
 
         from database import db
-        from utils.tafsir import fetch_page_tafsir, format_tafsir
         from utils.pagination import paginate_text
+        from utils.tafsir import fetch_page_tafsir, format_tafsir
 
 
         await db.set_user_tafsir_preference(interaction.user.id, interaction.guild_id, selected_edition)
@@ -251,8 +252,8 @@ class LanguageButton(discord.ui.Button):
             return
 
         from database import db
-        from utils.translation import fetch_page_translations, format_translations
         from utils.pagination import paginate_text
+        from utils.translation import fetch_page_translations, format_translations
 
 
         await db.set_user_language_preference(interaction.user.id, interaction.guild_id, language)
@@ -410,9 +411,11 @@ class ScheduleTimeModal(discord.ui.Modal):
         ))
 
     async def callback(self, interaction: discord.Interaction):
-        from database import db
-        import pytz
         from datetime import datetime
+
+        import pytz
+
+        from database import db
         
         try:
 

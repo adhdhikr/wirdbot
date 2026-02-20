@@ -1,6 +1,6 @@
 """Campaign repository for mass messaging and form management"""
 import json
-from typing import Optional, List, Dict, Any
+from typing import Any, Dict, List, Optional
 
 
 class CampaignRepository:
@@ -39,8 +39,6 @@ class CampaignRepository:
             embed_color, embed_image_url, embed_thumbnail_url,
             target_type, target_channel_id, role_ids_json, user_ids_json, created_by)
         )
-        
-        # Get the last inserted ID
         row = await self.connection.execute_one(
             "SELECT id FROM campaigns WHERE guild_id = ? ORDER BY id DESC LIMIT 1",
             (guild_id,)
@@ -55,13 +53,11 @@ class CampaignRepository:
         else:
             query = "SELECT * FROM campaigns WHERE id = ?"
             result = await self.connection.execute_one(query, (campaign_id,))
-        
-        # Parse JSON fields
         if result:
             if result.get('target_role_ids'):
                 try:
                     result['target_role_ids'] = json.loads(result['target_role_ids'])
-                except:
+                except Exception:
                     result['target_role_ids'] = []
             else:
                 result['target_role_ids'] = []
@@ -69,7 +65,7 @@ class CampaignRepository:
             if result.get('target_user_ids'):
                 try:
                     result['target_user_ids'] = json.loads(result['target_user_ids'])
-                except:
+                except Exception:
                     result['target_user_ids'] = []
             else:
                 result['target_user_ids'] = []
@@ -94,8 +90,6 @@ class CampaignRepository:
         """Delete a campaign"""
         query = "DELETE FROM campaigns WHERE id = ? AND guild_id = ?"
         await self.connection.execute_write(query, (campaign_id, guild_id))
-
-    # ===== Campaign Forms =====
 
     async def add_form(
         self,
@@ -122,8 +116,6 @@ class CampaignRepository:
             query, (campaign_id, button_label, button_style, button_emoji,
             button_order, int(has_form), modal_title, form_fields_json, response_channel_id)
         )
-        
-        # Get the last inserted ID
         row = await self.connection.execute_one(
             "SELECT id FROM campaign_forms WHERE campaign_id = ? ORDER BY id DESC LIMIT 1",
             (campaign_id,)
@@ -134,13 +126,11 @@ class CampaignRepository:
         """Get all forms/buttons for a campaign"""
         query = "SELECT * FROM campaign_forms WHERE campaign_id = ? ORDER BY button_order"
         results = await self.connection.execute_many(query, (campaign_id,))
-        
-        # Parse JSON form_fields
         for result in results:
             if result.get('form_fields'):
                 try:
                     result['form_fields'] = json.loads(result['form_fields'])
-                except:
+                except Exception:
                     result['form_fields'] = []
             else:
                 result['form_fields'] = []
@@ -155,7 +145,7 @@ class CampaignRepository:
         if result and result.get('form_fields'):
             try:
                 result['form_fields'] = json.loads(result['form_fields'])
-            except:
+            except Exception:
                 result['form_fields'] = []
         
         return result
@@ -164,8 +154,6 @@ class CampaignRepository:
         """Delete a form/button"""
         query = "DELETE FROM campaign_forms WHERE id = ?"
         await self.connection.execute_write(query, (form_id,))
-
-    # ===== Campaign Responses =====
 
     async def save_response(
         self,
@@ -186,8 +174,6 @@ class CampaignRepository:
         await self.connection.execute_write(
             query, (form_id, campaign_id, user_id, guild_id, response_json)
         )
-        
-        # Get the last inserted ID
         row = await self.connection.execute_one(
             "SELECT id FROM campaign_responses WHERE user_id = ? AND guild_id = ? ORDER BY id DESC LIMIT 1",
             (user_id, guild_id)
@@ -222,13 +208,11 @@ class CampaignRepository:
         query = f"SELECT * FROM campaign_responses WHERE {where_clause} ORDER BY submitted_at DESC"
         
         results = await self.connection.execute_many(query, tuple(params))
-        
-        # Parse JSON response_data
         for result in results:
             if result.get('response_data'):
                 try:
                     result['response_data'] = json.loads(result['response_data'])
-                except:
+                except Exception:
                     result['response_data'] = {}
         
         return results

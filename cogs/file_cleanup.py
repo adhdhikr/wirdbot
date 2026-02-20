@@ -3,7 +3,9 @@ File Cleanup Cog
 Background task that automatically cleans up stale files from user spaces.
 """
 import logging
+
 from nextcord.ext import commands, tasks
+
 from database import db
 
 logger = logging.getLogger(__name__)
@@ -24,8 +26,6 @@ class FileCleanupCog(commands.Cog):
         """Run cleanup once per day."""
         try:
             logger.info("Starting scheduled file cleanup...")
-            
-            # Preview first
             preview = await db.file_storage.get_cleanup_preview()
             
             if preview['file_count'] == 0:
@@ -33,8 +33,6 @@ class FileCleanupCog(commands.Cog):
                 return
             
             logger.info(f"Found {preview['file_count']} stale files ({preview['total_formatted']}) from {preview['users_affected']} inactive users")
-            
-            # Run cleanup
             result = await db.file_storage.cleanup_stale_files()
             
             logger.info(f"Cleanup complete: Deleted {result['deleted_count']} files, freed {result['freed_formatted']}")
@@ -49,7 +47,6 @@ class FileCleanupCog(commands.Cog):
     async def before_cleanup_task(self):
         """Wait until bot is ready before starting cleanup."""
         await self.bot.wait_until_ready()
-        # Wait a bit after startup to not overwhelm on boot
         import asyncio
         await asyncio.sleep(60)
     
@@ -63,7 +60,7 @@ class FileCleanupCog(commands.Cog):
             await ctx.send("✅ No stale files to clean up!")
             return
         
-        msg = f"🗑️ **Cleanup Preview**\n"
+        msg = "🗑️ **Cleanup Preview**\n"
         msg += f"Files: {preview['file_count']}\n"
         msg += f"Size: {preview['total_formatted']}\n"
         msg += f"Users affected: {preview['users_affected']}\n\n"
@@ -83,7 +80,7 @@ class FileCleanupCog(commands.Cog):
         
         result = await db.file_storage.cleanup_stale_files()
         
-        msg = f"✅ **Cleanup Complete**\n"
+        msg = "✅ **Cleanup Complete**\n"
         msg += f"Deleted: {result['deleted_count']} files\n"
         msg += f"Freed: {result['freed_formatted']}"
         

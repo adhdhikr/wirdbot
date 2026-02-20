@@ -1,4 +1,5 @@
-from typing import Optional, List, Dict, Any
+from typing import Any, Dict, List, Optional
+
 from db.connection import DatabaseConnection
 
 
@@ -61,10 +62,7 @@ class UserRepository:
         """Manually set a user's session streak (admin command)."""
         user = await self.get(user_id, guild_id)
         if not user:
-            # Create user if doesn't exist
             await self.register(user_id, guild_id)
-        
-        # Update longest if new streak is higher
         current_longest = user.get('longest_session_streak', 0) if user else 0
         longest = max(current_longest, streak)
         

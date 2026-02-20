@@ -53,9 +53,6 @@ async def add_bot_status_option(status_text: str, **kwargs):
         return f"✅ Added '{status_text}' to the status rotation list."
     else:
         return f"'{status_text}' is already in the status rotation list."
-
-
-# Export list
 async def clear_context(confirmation: bool = True, **kwargs) -> str:
     """
     Clears the AI's short-term memory for this channel.
@@ -75,17 +72,11 @@ async def clear_context(confirmation: bool = True, **kwargs) -> str:
         return "Error: Internal context missing."
         
     try:
-        # Clear in-memory history
         if channel.id in cog.chat_histories:
             del cog.chat_histories[channel.id]
-            
-        # Set pruning marker to ignore messages before NOW
-        # We need the current message ID. 'message' is passed in kwargs.
         current_msg = kwargs.get('message')
         if current_msg:
              cog.context_pruning_markers[channel.id] = current_msg.id
-             
-        # Also remove active task if any (besides self)? No, just history.
         return "✅ Context cleared. I have forgotten previous messages in this session."
         
     except Exception as e:

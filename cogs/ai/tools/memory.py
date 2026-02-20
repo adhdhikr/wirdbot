@@ -1,5 +1,6 @@
-from database import db
 import logging
+
+from database import db
 
 logger = logging.getLogger(__name__)
 
@@ -88,8 +89,6 @@ async def fetch_user_memory_context(user_id: int, guild_id: int, limit: int = 5)
         memories = await db.get_user_memories(user_id, guild_id, limit=limit)
         if not memories:
             return ""
-        
-        # Compact format for context window efficiency
         mem_list = "; ".join([f"{m['content']}" for m in memories])
         return mem_list
     except Exception as e:

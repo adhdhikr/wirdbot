@@ -2,9 +2,10 @@
 Admin and database tools for the AI cog.
 These require admin or owner permissions.
 """
+import logging
 import os
 import re
-import logging
+
 from database import db
 
 logger = logging.getLogger(__name__)
@@ -26,15 +27,11 @@ async def execute_sql(query: str, **kwargs):
         return "❌ Error: Permission Denied. You must be an Admin or Bot Owner to use this tool."
 
     query = query.strip()
-    
-    # Validate query type
     if not query.upper().startswith("SELECT"):
         return "❌ Error: Only SELECT queries are allowed."
     
     if ";" in query:
         return "❌ Error: Multiple statements (;) are not allowed."
-    
-    # Admin safety check - must include guild_id in query
     if not is_owner and guild_id:
         if str(guild_id) not in query:
             return f"❌ Error: Admin Safety Check Failed. Include `WHERE guild_id = {guild_id}` in your query."
@@ -43,8 +40,6 @@ async def execute_sql(query: str, **kwargs):
         rows = await db.connection.execute_many(query)
         if not rows:
             return "No results found."
-        
-        # Format results
         if len(rows) > 20:
             rows = rows[:20]
             footer = "\n... (Truncated to 20 rows)"
@@ -90,7 +85,6 @@ async def search_codebase(query: str, is_regex: bool = False, **kwargs):
     MAX_RESULTS = 50
 
     for root, dirs, files in os.walk(base_path):
-        # Skip common non-code directories
         if any(x in root for x in ['.git', '__pycache__', 'venv', 'node_modules', '.gemini']):
             continue
             
@@ -250,7 +244,6 @@ async def update_server_config(setting: str, value: str, **kwargs):
             if not (1 <= final_value <= 20):
                 raise ValueError("Pages must be between 1 and 20")
         elif setting in ('channel_id', 'wird_role_id'):
-            # Extract ID from mention or raw number
             match = re.search(r'(\d+)', str(value))
             if match:
                 final_value = int(match.group(1))
@@ -265,9 +258,6 @@ async def update_server_config(setting: str, value: str, **kwargs):
         
     except Exception as e:
         return f"Error updating config: {e}"
-
-
-# Export list
 ADMIN_TOOLS = [
     execute_sql,
     search_codebase,

@@ -1,16 +1,17 @@
 """Campaign management cog for mass messaging"""
-import nextcord as discord
-from nextcord.ext import commands
-from nextcord import SlashOption
-from database import db
-from cogs.campaign_views import (
-    CampaignCreationModal,
-    AddButtonModal,
-    CampaignMessageView,
-    CampaignFormModal
-)
 import json
 from typing import Optional
+
+import nextcord as discord
+from nextcord import SlashOption
+from nextcord.ext import commands
+
+from cogs.campaign_views import (
+    AddButtonModal,
+    CampaignCreationModal,
+    CampaignMessageView,
+)
+from database import db
 
 
 def admin_or_specific_user():
@@ -126,27 +127,20 @@ class CampaignCog(commands.Cog):
         
         role_ids = []
         user_ids = []
-        
-        # Parse roles
         if roles:
             import re
-            # Extract role IDs from mentions or plain IDs
             role_matches = re.findall(r'<@&(\d+)>|(\d+)', roles)
             for match in role_matches:
                 role_id = int(match[0] or match[1])
                 role = interaction.guild.get_role(role_id)
                 if role:
                     role_ids.append(role_id)
-        
-        # Parse users  
         if users:
             import re
             user_matches = re.findall(r'<@!?(\d+)>|(\d+)', users)
             for match in user_matches:
                 user_id = int(match[0] or match[1])
                 user_ids.append(user_id)
-        
-        # Update campaign
         role_ids_json = json.dumps(role_ids) if role_ids else None
         user_ids_json = json.dumps(user_ids) if user_ids else None
         
@@ -155,7 +149,7 @@ class CampaignCog(commands.Cog):
         
         embed = discord.Embed(
             title="✅ Targets Updated",
-            description=f"Campaign targets have been set.",
+            description="Campaign targets have been set.",
             color=discord.Color.green()
         )
         
@@ -181,7 +175,6 @@ class CampaignCog(commands.Cog):
         )
     ):
         """Add a button to a campaign"""
-        # Verify campaign exists and belongs to this guild
         campaign = await db.campaigns.get_campaign(campaign_id, interaction.guild_id)
         if not campaign:
             await interaction.response.send_message(
@@ -246,14 +239,10 @@ class CampaignCog(commands.Cog):
     ):
         """Add form fields to a button"""
         await interaction.response.defer(ephemeral=True)
-        
-        # Get the form
         form = await db.campaigns.get_form(form_id)
         if not form:
             await interaction.followup.send("❌ Button/Form not found.", ephemeral=True)
             return
-        
-        # Build form fields array
         form_fields = []
         
         if field1_name and field1_label:
@@ -279,8 +268,6 @@ class CampaignCog(commands.Cog):
                 'required': True,
                 'multiline': False
             })
-        
-        # Update the form in database
         form_fields_json = json.dumps(form_fields)
         query = """
             UPDATE campaign_forms 
@@ -336,11 +323,7 @@ class CampaignCog(commands.Cog):
         if not campaign:
             await interaction.followup.send("❌ Campaign not found.", ephemeral=True)
             return
-        
-        # Get buttons
         buttons = await db.campaigns.get_campaign_forms(campaign_id)
-        
-        # Build message
         content = campaign.get('message_content')
         embed = None
         
@@ -354,8 +337,6 @@ class CampaignCog(commands.Cog):
                 embed.set_image(url=campaign['embed_image_url'])
             if campaign.get('embed_thumbnail_url'):
                 embed.set_thumbnail(url=campaign['embed_thumbnail_url'])
-        
-        # Create view with buttons
         view = None
         if buttons:
             view = CampaignMessageView(campaign_id, buttons)
@@ -390,11 +371,7 @@ class CampaignCog(commands.Cog):
         if not campaign:
             await interaction.followup.send("❌ Campaign not found.", ephemeral=True)
             return
-        
-        # Get buttons
         buttons = await db.campaigns.get_campaign_forms(campaign_id)
-        
-        # Build message
         content = campaign.get('message_content')
         embed = None
         
@@ -408,24 +385,18 @@ class CampaignCog(commands.Cog):
                 embed.set_image(url=campaign['embed_image_url'])
             if campaign.get('embed_thumbnail_url'):
                 embed.set_thumbnail(url=campaign['embed_thumbnail_url'])
-        
-        # Create view with buttons
         view = None
         if buttons:
             view = CampaignMessageView(campaign_id, buttons)
         
         success_count = 0
         fail_count = 0
-        
-        # Determine recipients based on target type
         recipients = []
         
         if campaign['target_type'] == 'dm':
-            # Send to all members
             recipients = [m for m in interaction.guild.members if not m.bot]
             
         elif campaign['target_type'] == 'roles':
-            # Send to members with specific roles
             if campaign.get('target_role_ids'):
                 role_ids = campaign['target_role_ids']  # Already parsed by repository
                 for member in interaction.guild.members:
@@ -441,7 +412,6 @@ class CampaignCog(commands.Cog):
                 return
                 
         elif campaign['target_type'] == 'users':
-            # Send to specific users
             if campaign.get('target_user_ids'):
                 user_ids = campaign['target_user_ids']  # Already parsed by repository
                 for user_id in user_ids:
@@ -456,7 +426,6 @@ class CampaignCog(commands.Cog):
                 return
         
         if campaign['target_type'] in ['dm', 'roles', 'users']:
-            # Send DMs to recipients
             
             status_msg = await interaction.followup.send(
                 f"📤 Sending DMs... (0/{len(recipients)})",
@@ -467,20 +436,16 @@ class CampaignCog(commands.Cog):
                 try:
                     await member.send(content=content, embed=embed, view=view)
                     success_count += 1
-                except:
+                except Exception:
                     fail_count += 1
-                
-                # Update status every 10 members
                 if (i + 1) % 10 == 0:
                     try:
                         await status_msg.edit(
                             content=f"📤 Sending DMs... ({i + 1}/{len(recipients)})\n"
                                    f"✅ Sent: {success_count} | ❌ Failed: {fail_count}"
                         )
-                    except:
+                    except Exception:
                         pass
-            
-            # Final status
             await status_msg.edit(
                 content=f"✅ Campaign sent!\n"
                        f"**Successful:** {success_count}\n"
@@ -508,8 +473,6 @@ class CampaignCog(commands.Cog):
                     ephemeral=True
                 )
                 fail_count = 1
-        
-        # Update campaign status
         if success_count > 0:
             await db.campaigns.update_campaign_status(campaign_id, 'sent')
 
@@ -561,7 +524,7 @@ class CampaignCog(commands.Cog):
             return
         
         embed = discord.Embed(
-            title=f"📊 Campaign Responses",
+            title="📊 Campaign Responses",
             description=f"Total responses: {len(responses)}",
             color=discord.Color.blue()
         )

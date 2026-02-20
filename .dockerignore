@@ -1,4 +1,3 @@
-# .dockerignore for both api and bot
 __pycache__/
 *.pyc
 *.pyo

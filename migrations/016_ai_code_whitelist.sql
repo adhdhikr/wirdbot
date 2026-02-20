@@ -1,0 +1,4 @@
+CREATE TABLE IF NOT EXISTS ai_code_whitelist (
+    guild_id INTEGER PRIMARY KEY,
+    added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);

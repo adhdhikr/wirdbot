@@ -1,66 +1,94 @@
 import nextcord as discord
 
-class ScopedBot:
-    """A wrapper around the bot instance to restrict access to the current guild."""
-    def __init__(self, bot, guild_id):
-        self._bot = bot
-        self._guild_id = guild_id
-        
-        # self.user and self.loop are accessed via property/getattr now
 
-        
-    def __getattr__(self, name):
 
-        if name in ('guilds', 'users', 'voice_clients', 'dm_channels', 'private_channels', 'http', 'close', 'logout', 'ws'):
-            raise AttributeError(f"Access to 'bot.{name}' is restricted for security.")
-        
-        return getattr(self._bot, name)
+import inspect
 
-    @property
-    def user(self):
-        """Return a read-only-like wrapper for the bot user or just the user but we can't easily wrap it fully without a proxy."""
-        # For now, we return the user, but we rely on code analysis to block 'edit' calls or we can wrap it.
-        # Simplest: Returns the user object, but we trust the user won't find a way to edit unless we proxy it.
-        # To be safe, let's just return the user. The prompt says "dont allow ... setting the bots about me".
-        # We can try to wrap it.
-        return self._bot.user
+class SecureProxy:
+    """
+    A recursive structural proxy that blocks all internal/private attribute access.
+    This makes it impossible to reach __globals__, __dict__, __class__, etc.
+    """
+    def __init__(self, obj, forbidden_names=None):
+        object.__setattr__(self, "_obj", obj)
+        object.__setattr__(self, "_forbidden", forbidden_names or set())
+
+    def __getattribute__(self, name):
+        # Allow internal access to the wrapped object for the proxy itself
+        if name in ("_obj", "_forbidden", "__getattribute__", "__getattr__", "__repr__", "__dir__"):
+             return object.__getattribute__(self, name)
+             
+        # STRUCTURAL BLOCK: No underscores allowed, no forbidden names
+        if name.startswith("_") or name in object.__getattribute__(self, "_forbidden"):
+            raise AttributeError(f"❌ Security Error: Access to '{name}' is strictly prohibited.")
+
+        attr = getattr(object.__getattribute__(self, "_obj"), name)
+
+        # If it's a method/callable, wrap the result recursively
+        if callable(attr):
+            def wrapped(*args, **kwargs):
+                # Clean args/kwargs (optional, but good for depth)
+                res = attr(*args, **kwargs)
+                
+                if inspect.isawaitable(res):
+                    async def async_wrapped():
+                        inner_res = await res
+                        if isinstance(inner_res, (str, int, float, bool, type(None))):
+                            return inner_res
+                        return SecureProxy(inner_res)
+                    return async_wrapped()
+                
+                if isinstance(res, (str, int, float, bool, type(None))):
+                    return res
+                return SecureProxy(res)
+            return wrapped
+        
+        # Recursive wrapping for attributes
+        if isinstance(attr, (str, int, float, bool, type(None))):
+            return attr
+        return SecureProxy(attr)
 
     def __repr__(self):
-        return f"<ScopedBot guild_id={self._guild_id} wrapper>"
+        return f"<SecureProxy wrapping {type(object.__getattribute__(self, '_obj')).__name__}>"
 
     def __dir__(self):
-        try:
-            d = set(dir(self._bot))
-            forbidden = {'guilds', 'users', 'voice_clients', 'dm_channels', 'private_channels'}
-            return list(d - forbidden)
-        except:
-            return []
+        # Only show safe attributes in dir()
+        return [attr for attr in dir(object.__getattribute__(self, "_obj")) if not attr.startswith("_")]
+
+
+class ScopedBot(SecureProxy):
+    """A structurally secured wrapper around the bot instance restricted to one guild."""
+    def __init__(self, bot, guild_id):
+        forbidden = {'guilds', 'users', 'voice_clients', 'dm_channels', 'private_channels', 'http', 'close', 'logout', 'ws'}
+        super().__init__(bot, forbidden_names=forbidden)
+        object.__setattr__(self, "_guild_id", guild_id)
 
     def get_guild(self, guild_id):
-        if guild_id == self._guild_id:
-            return self._bot.get_guild(guild_id)
+        if guild_id == object.__getattribute__(self, "_guild_id"):
+            return SecureProxy(object.__getattribute__(self, "_obj").get_guild(guild_id))
         return None
 
     def get_user(self, user_id):
-
-        guild = self._bot.get_guild(self._guild_id)
+        guild = object.__getattribute__(self, "_obj").get_guild(object.__getattribute__(self, "_guild_id"))
         if guild and guild.get_member(user_id):
-            return self._bot.get_user(user_id)
+            return SecureProxy(object.__getattribute__(self, "_obj").get_user(user_id))
         return None
         
     async def fetch_user(self, user_id):
-        guild = self._bot.get_guild(self._guild_id)
+        guild = object.__getattribute__(self, "_obj").get_guild(object.__getattribute__(self, "_guild_id"))
         if guild:
              try:
                  member = await guild.fetch_member(user_id)
-                 if member: return member
-             except:
+                 if member:
+                     return SecureProxy(member)
+             except Exception:
                  pass
         raise discord.Forbidden("Cannot fetch users outside this server.")
 
     async def fetch_guild(self, guild_id):
-        if guild_id == self._guild_id:
-            return await self._bot.fetch_guild(guild_id)
+        if guild_id == object.__getattribute__(self, "_guild_id"):
+            res = await object.__getattribute__(self, "_obj").fetch_guild(guild_id)
+            return SecureProxy(res)
         raise discord.Forbidden("Cannot fetch other guilds.")
 
     async def application_info(self):

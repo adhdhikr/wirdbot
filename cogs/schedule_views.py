@@ -1,11 +1,6 @@
-# At the end of the file, add the setup function for extension loading
 
-def setup(bot):
-    pass
 import nextcord as discord
-from nextcord.ui import View, Button, Select
-from database import Database
-from typing import List, Dict, Any
+from nextcord.ui import Button, Select, View
 
 
 class ScheduleMainView(View):
@@ -16,14 +11,14 @@ class ScheduleMainView(View):
         
     async def create_embed(self) -> discord.Embed:
         from main import db
-        # ... code...
         
         scheduled_times = await db.get_scheduled_times(self.guild_id)
         guild_config = await db.get_guild_config(self.guild_id)
         timezone = guild_config.get('timezone', 'UTC') if guild_config else 'UTC'
         
-        import pytz
         from datetime import datetime
+
+        import pytz
         
         embed = discord.Embed(
             title="⏰ Schedule Management",
@@ -35,11 +30,9 @@ class ScheduleMainView(View):
             times_list = []
             for st in scheduled_times:
                 if st['time_type'] == 'custom':
-                    # Convert UTC to local timezone
                     utc_time = datetime.strptime(st['time_value'], '%H:%M').replace(tzinfo=pytz.UTC)
                     local_tz = pytz.timezone(timezone)
                     local_time = utc_time.astimezone(local_tz)
-                    # Format with hour without leading zero but keep minutes with leading zero
                     formatted_time = local_time.strftime('%I:%M %p')
                     if formatted_time[0] == '0':
                         formatted_time = formatted_time[1:]
@@ -58,8 +51,6 @@ class ScheduleMainView(View):
                 value="Click **Add Schedule** to create your first scheduled time!",
                 inline=False
             )
-        
-        # Show current time in their timezone
         tz = pytz.timezone(timezone)
         current_time = datetime.now(tz).strftime('%I:%M %p')
         footer_text = f"Current time: {current_time} • Select schedule to delete • Click + to add"
@@ -79,11 +70,8 @@ class ScheduleMainView(View):
     async def setup_items(self):
         """Setup all buttons and dropdowns"""
         from main import db
-        # ...existing code...
         
         scheduled_times = await db.get_scheduled_times(self.guild_id)
-        
-        # Add dropdown if there are schedules
         if scheduled_times:
             options = []
             for st in scheduled_times:
@@ -108,8 +96,6 @@ class ScheduleMainView(View):
             )
             select.callback = self.schedule_selected
             self.add_item(select)
-        
-        # Add action buttons
         add_button = Button(
             label="Add Schedule",
             style=discord.ButtonStyle.success,
@@ -118,8 +104,6 @@ class ScheduleMainView(View):
         )
         add_button.callback = self.add_schedule
         self.add_item(add_button)
-        
-        # Delete button (only if schedule is selected)
         if self.selected_schedule_id:
             delete_button = Button(
                 label="Delete Selected",
@@ -129,8 +113,6 @@ class ScheduleMainView(View):
             )
             delete_button.callback = self.delete_schedule
             self.add_item(delete_button)
-        
-        # Clear all button (only if schedules exist)
         if scheduled_times:
             clear_button = Button(
                 label="Clear All",
@@ -172,7 +154,6 @@ class ScheduleMainView(View):
     async def clear_all(self, interaction: discord.Interaction):
         """Clear all schedules"""
         from main import db
-        # ...existing code...
         
         await db.clear_scheduled_times(self.guild_id)
         self.selected_schedule_id = None
@@ -184,8 +165,6 @@ class AddScheduleTypeView(View):
     def __init__(self, guild_id: int):
         super().__init__(timeout=300)
         self.guild_id = guild_id
-        
-        # Prayer time button
         prayer_button = Button(
             label="Prayer Time",
             style=discord.ButtonStyle.primary,
@@ -194,8 +173,6 @@ class AddScheduleTypeView(View):
         )
         prayer_button.callback = self.prayer_time_selected
         self.add_item(prayer_button)
-        
-        # Custom time button
         custom_button = Button(
             label="Custom Time",
             style=discord.ButtonStyle.primary,
@@ -204,8 +181,6 @@ class AddScheduleTypeView(View):
         )
         custom_button.callback = self.custom_time_selected
         self.add_item(custom_button)
-        
-        # Back button
         back_button = Button(
             label="Back",
             style=discord.ButtonStyle.secondary,
@@ -229,7 +204,6 @@ class AddScheduleTypeView(View):
         """Show custom time modal"""
         from views import ScheduleTimeModal
         modal = ScheduleTimeModal(self.guild_id)
-        # In nextcord, send_modal expects a Modal object
         await interaction.response.send_modal(modal)
 
     async def back(self, interaction: discord.Interaction):
@@ -244,8 +218,6 @@ class PrayerTimeSelectView(View):
     def __init__(self, guild_id: int):
         super().__init__(timeout=300)
         self.guild_id = guild_id
-        
-        # Prayer selection dropdown
         prayers = [
             ("Fajr", "fajr", "🌅"),
             ("Dhuhr", "dhuhr", "☀️"),
@@ -266,8 +238,6 @@ class PrayerTimeSelectView(View):
         )
         select.callback = self.prayer_selected
         self.add_item(select)
-        
-        # Back button
         back_button = Button(
             label="Back",
             style=discord.ButtonStyle.secondary,
@@ -284,8 +254,6 @@ class PrayerTimeSelectView(View):
         from main import db
         
         await db.add_scheduled_time(self.guild_id, prayer)
-        
-        # Go back to main view
         view = ScheduleMainView(self.guild_id)
         await view.setup_items()
         embed = await view.create_embed()
@@ -301,3 +269,9 @@ class PrayerTimeSelectView(View):
             color=discord.Color.green()
         )
         await interaction.response.edit_message(embed=embed, view=view)
+
+
+def setup(bot):
+    """Setup function for the extension (no-op as this file only contains views)"""
+    # This extension only contains views used by other cogs
+    pass

@@ -1,11 +1,10 @@
-import nextcord as discord
-from nextcord.ext import commands
-from nextcord import SlashOption
-from views import ScheduleTimeModal
-from database import db
-from utils.user_management import assign_role, remove_role
 import aiohttp
+import nextcord as discord
+from nextcord import SlashOption
+from nextcord.ext import commands
+
 from config import API_BASE_URL
+from database import db
 
 
 def admin_or_specific_user():
@@ -127,8 +126,9 @@ class AdminCog(commands.Cog):
             return
         scheduled_times = await db.get_scheduled_times(interaction.guild_id)
         timezone = guild_config.get('timezone', 'UTC')
-        import pytz
         from datetime import datetime, timedelta
+
+        import pytz
         times_str = ""
         next_schedule_dt = None
         for st in scheduled_times:

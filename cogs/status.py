@@ -1,8 +1,9 @@
-import nextcord as discord
-from nextcord.ext import commands, tasks
+import asyncio
 import logging
 import random
-import asyncio
+
+import nextcord as discord
+from nextcord.ext import commands, tasks
 
 logger = logging.getLogger(__name__)
 
@@ -45,12 +46,8 @@ class Status(commands.Cog):
         self.current_forced_status = text
         await self.bot.change_presence(activity=discord.Game(name=text))
         logger.info(f"Forced status to: {text} for {duration_minutes} minutes")
-        
-        # Cancel existing reset task if any
         if self._reset_task:
             self._reset_task.cancel()
-        
-        # Schedule the reset
         self._reset_task = self.bot.loop.create_task(self._reset_status_after(duration_minutes))
 
     async def _reset_status_after(self, minutes: int):
@@ -59,9 +56,7 @@ class Status(commands.Cog):
             self.current_forced_status = None
             self._reset_task = None
             logger.info("Forced status expired. Resuming rotation.")
-            # Trigger rotation immediately
             if self.rotate_status.is_running():
-                # We can't restart the loop easily without stopping it, so we just run the routine once
                 new_status = random.choice(self.status_options)
                 await self.bot.change_presence(activity=discord.Game(name=new_status))
         except asyncio.CancelledError:

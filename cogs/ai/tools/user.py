@@ -3,6 +3,7 @@ User-facing tools for the AI cog.
 These are available to all users.
 """
 import logging
+
 from database import db
 
 logger = logging.getLogger(__name__)
@@ -57,9 +58,6 @@ async def set_my_streak_emoji(emoji: str, **kwargs):
         return f"✅ Updated your streak emoji to {emoji}"
     else:
         return "You are not registered. Use /register first."
-
-
-# Export list
 USER_TOOLS = [
     get_my_stats,
     set_my_streak_emoji,

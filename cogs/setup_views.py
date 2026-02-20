@@ -1,16 +1,13 @@
-# At the end of the file, add the setup function for extension loading
 
-def setup(bot):
-    pass
-import nextcord as discord
-from nextcord.ui import View, Button, Select, Modal, TextInput
-from database import db
-from typing import Optional
-import pytz
 from datetime import datetime
+from typing import Optional
 
+import nextcord as discord
+import pytz
+from nextcord.ui import Button, Modal, Select, TextInput, View
 
-# Common timezones organized by region with major cities
+from database import db
+
 TIMEZONE_REGIONS = {
     "🌎 Americas": [
         ("New York, Toronto", "America/New_York"),
@@ -69,8 +66,6 @@ class TimezoneRegionView(View):
         super().__init__(timeout=300)
         self.guild_id = guild_id
         self.setup_data = setup_data or {}
-        
-        # Add region buttons
         for region, timezones in TIMEZONE_REGIONS.items():
             button = Button(
                 label=region,
@@ -79,8 +74,6 @@ class TimezoneRegionView(View):
             )
             button.callback = self.create_region_callback(region, timezones)
             self.add_item(button)
-        
-        # Add manual entry button
         manual_button = Button(
             label="Enter Manually",
             style=discord.ButtonStyle.secondary,
@@ -114,8 +107,6 @@ class TimezoneSelectView(View):
         self.guild_id = guild_id
         self.region = region
         self.setup_data = setup_data
-        
-        # Create timezone options
         options = []
         for city, tz_name in timezones:
             tz = pytz.timezone(tz_name)
@@ -136,8 +127,6 @@ class TimezoneSelectView(View):
         )
         select.callback = self.timezone_selected
         self.add_item(select)
-        
-        # Back button
         back_button = Button(
             label="Back",
             style=discord.ButtonStyle.secondary,
@@ -153,8 +142,6 @@ class TimezoneSelectView(View):
         self.setup_data['timezone'] = timezone
         
         view = ChannelSelectView(self.guild_id, self.setup_data, interaction.guild)
-        
-        # Show current time in selected timezone
         tz = pytz.timezone(timezone)
         current_time = datetime.now(tz).strftime('%I:%M %p')
         
@@ -191,14 +178,10 @@ class TimezoneManualModal(Modal):
     
     async def callback(self, interaction: discord.Interaction):
         timezone_input = self.children[0].value.strip()
-        
-        # Try to find matching timezone
         try:
-            # Direct match
             if timezone_input in pytz.all_timezones:
                 timezone = timezone_input
             else:
-                # Search for city name
                 matches = [tz for tz in pytz.all_timezones if timezone_input.lower() in tz.lower()]
                 if matches:
                     timezone = matches[0]
@@ -236,14 +219,8 @@ class ChannelSelectView(View):
         super().__init__(timeout=300)
         self.guild_id = guild_id
         self.setup_data = setup_data
-        
-        # Get text channels from the guild
         text_channels = [ch for ch in guild.channels if isinstance(ch, discord.TextChannel)]
-        
-        # Priority keywords for channel names (case-insensitive)
         priority_keywords = ['coran', 'quran', 'wird', 'islam', 'muslim', 'allah', 'prayer', 'salah', 'dua', 'hadith', 'sunnah', 'faith', 'iman']
-        
-        # Sort channels to prioritize those with relevant names
         def channel_priority(channel):
             name_lower = channel.name.lower()
             for keyword in priority_keywords:
@@ -252,8 +229,6 @@ class ChannelSelectView(View):
             return 1  # Normal priority
         
         text_channels.sort(key=channel_priority)
-        
-        # Create options from channels (limit to 25 for Discord's limit)
         options = []
         for channel in text_channels[:25]:
             options.append(discord.SelectOption(
@@ -271,7 +246,6 @@ class ChannelSelectView(View):
             select.callback = self.channel_selected
             self.add_item(select)
         else:
-            # Fallback: use a button to enter channel ID manually
             manual_button = Button(
                 label="Enter Channel ID",
                 style=discord.ButtonStyle.primary,
@@ -336,13 +310,10 @@ class ChannelManualModal(Modal):
         channel_input = self.children[0].value.strip()
         
         try:
-            # Extract channel ID from mention format or use directly
             if channel_input.startswith('<#') and channel_input.endswith('>'):
                 channel_id = int(channel_input[2:-1])
             else:
                 channel_id = int(channel_input)
-            
-            # Verify channel exists
             channel = interaction.guild.get_channel(channel_id)
             if not channel or not isinstance(channel, discord.TextChannel):
                 await interaction.response.send_message(
@@ -427,13 +398,8 @@ class InitialTimeModal(Modal):
         time_input = self.children[0].value.strip()
         
         try:
-            # Parse time input (support multiple formats)
             time_input_upper = time_input.upper()
-            
-            # Remove spaces
             time_input_upper = time_input_upper.replace(' ', '')
-            
-            # Handle AM/PM format
             if 'AM' in time_input_upper or 'PM' in time_input_upper:
                 is_pm = 'PM' in time_input_upper
                 time_part = time_input_upper.replace('AM', '').replace('PM', '')
@@ -449,22 +415,17 @@ class InitialTimeModal(Modal):
                 elif is_pm:
                     hours += 12
             else:
-                # 24-hour format
                 if ':' in time_input:
                     hours, minutes = map(int, time_input.split(':'))
                 else:
                     hours = int(time_input)
                     minutes = 0
-            
-            # Validate
             if hours < 0 or hours > 23 or minutes < 0 or minutes > 59:
                 await interaction.response.send_message(
                     "❌ Invalid time! Use format like:\n• `8:00 AM`\n• `14:30`\n• `9 PM`",
                     ephemeral=True
                 )
                 return
-            
-            # Convert to UTC
             tz = pytz.timezone(self.setup_data['timezone'])
             local_time = datetime.now(tz).replace(hour=hours, minute=minutes, second=0, microsecond=0)
             utc_time = local_time.astimezone(pytz.UTC)
@@ -472,8 +433,6 @@ class InitialTimeModal(Modal):
             time_value = f"{utc_time.hour:02d}:{utc_time.minute:02d}"
             self.setup_data['initial_time'] = time_value
             self.setup_data['initial_time_local'] = f"{hours:02d}:{minutes:02d}"
-            
-            # Show loading message while fetching mushafs
             await interaction.response.edit_message(
                 embed=discord.Embed(
                     title="⚙️ Setup Wizard - Step 4/5",
@@ -513,6 +472,7 @@ class MushafSelectView(View):
     async def fetch_mushafs(self):
         """Fetch available mushaf types from the API"""
         import aiohttp
+
         from config import API_BASE_URL
         
         try:
@@ -523,12 +483,8 @@ class MushafSelectView(View):
                         self.mushafs = data.get("mushafs", [])[:25]  # Discord limits to 25 options
         except Exception:
             pass
-        
-        # Fallback to defaults if API is unavailable
         if not self.mushafs:
             self.mushafs = ["madani", "uthmani", "indopak"]
-        
-        # Create select options
         options = []
         emoji_map = {
             "madani": "📖",
@@ -600,8 +556,6 @@ class FinalConfigView(View):
         super().__init__(timeout=300)
         self.guild_id = guild_id
         self.setup_data = setup_data
-        
-        # Pages per day input
         pages_button = Button(
             label="Pages Per Day (Default: 1)",
             style=discord.ButtonStyle.secondary,
@@ -610,8 +564,6 @@ class FinalConfigView(View):
         )
         pages_button.callback = self.set_pages
         self.add_item(pages_button)
-        
-        # Mosque ID input (optional)
         mosque_button = Button(
             label="Set Mosque ID (Optional)",
             style=discord.ButtonStyle.secondary,
@@ -620,8 +572,6 @@ class FinalConfigView(View):
         )
         mosque_button.callback = self.set_mosque
         self.add_item(mosque_button)
-        
-        # Finish button
         finish_button = Button(
             label="Complete Setup",
             style=discord.ButtonStyle.success,
@@ -630,8 +580,6 @@ class FinalConfigView(View):
         )
         finish_button.callback = self.finish_setup
         self.add_item(finish_button)
-        
-        # Back button
         back_button = Button(
             label="Back",
             style=discord.ButtonStyle.secondary,
@@ -653,14 +601,10 @@ class FinalConfigView(View):
     
     async def finish_setup(self, interaction: discord.Interaction):
         """Save configuration to database"""
-        # ...existing code...
         
         try:
-            # Set defaults
             pages_per_day = self.setup_data.get('pages_per_day', 1)
             mosque_id = self.setup_data.get('mosque_id', 'cio-gatineau')
-            
-            # Create guild config
             await db.create_or_update_guild(
                 self.guild_id,
                 timezone=self.setup_data['timezone'],
@@ -670,15 +614,11 @@ class FinalConfigView(View):
                 mosque_id=mosque_id,
                 configured=1
             )
-            
-            # Add initial scheduled time
             await db.add_scheduled_time(
                 self.guild_id,
                 "custom",
                 self.setup_data['initial_time']
             )
-            
-            # Success embed
             embed = discord.Embed(
                 title="✅ Setup Complete!",
                 description="Your Wird bot has been successfully configured!",
@@ -784,3 +724,9 @@ class MosqueIdModal(Modal):
         embed.add_field(name="🕌 Mosque ID", value=mosque_id, inline=True)
         
         await interaction.response.edit_message(embed=embed, view=view)
+
+
+def setup(bot):
+    """Setup function for the extension (no-op as this file only contains views)"""
+    # This extension only contains views used by other cogs
+    pass

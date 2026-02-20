@@ -3,11 +3,11 @@ Campaign management tools for the AI cog.
 Allows AI to create mass messaging campaigns and forms.
 These require admin permissions.
 """
-import logging
 import json
-import nextcord as discord
-from database import db
+import logging
+
 from cogs.campaign_views import CampaignMessageView
+from database import db
 
 logger = logging.getLogger(__name__)
 
@@ -51,28 +51,26 @@ async def create_campaign_tool(
     
     if target_type not in ['dm', 'channel', 'roles', 'users']:
         return "❌ Error: target_type must be 'dm', 'channel', 'roles', or 'users'."
-    
-    # Parse role/user IDs if provided
     role_ids = None
     user_ids = None
     
     if target_type == 'roles' and target_role_ids:
         try:
             role_ids = json.loads(target_role_ids)
-        except:
+        except (json.JSONDecodeError, TypeError):
             return "❌ Error: target_role_ids must be valid JSON array of role IDs."
     
     if target_type == 'users' and target_user_ids:
         try:
             user_ids = json.loads(target_user_ids)
-        except:
+        except (json.JSONDecodeError, TypeError):
             return "❌ Error: target_user_ids must be valid JSON array of user IDs."
     
     target_channel_id_int = None
     if kwargs.get('target_channel_id'):
         try:
             target_channel_id_int = int(str(kwargs.get('target_channel_id')).strip())
-        except:
+        except (ValueError, TypeError):
             pass
 
     try:
@@ -140,8 +138,6 @@ async def add_campaign_button(
     
     if not guild_id:
         return "❌ Error: This tool can only be used in a server."
-    
-    # Verify campaign exists and belongs to this guild
     campaign = await db.campaigns.get_campaign(campaign_id, guild_id)
     if not campaign:
         return "❌ Error: Campaign not found or doesn't belong to this server."
@@ -151,8 +147,6 @@ async def add_campaign_button(
     
     if has_form and not modal_title:
         return "❌ Error: modal_title is required when has_form is True."
-    
-    # Parse and validate form_fields if provided
     form_fields = None
     if has_form and form_fields_json:
         try:
@@ -222,7 +216,7 @@ async def send_campaign(
     """
     guild_id = kwargs.get('guild_id')
     guild = kwargs.get('guild')
-    bot = kwargs.get('bot')
+    kwargs.get('bot')
     is_owner = kwargs.get('is_owner', False)
     is_admin = kwargs.get('is_admin', False)
 
@@ -231,54 +225,33 @@ async def send_campaign(
     
     if not guild_id or not guild:
         return "❌ Error: This tool can only be used in a server."
-    
-    # Verify campaign exists
     campaign = await db.campaigns.get_campaign(campaign_id, guild_id)
     if not campaign:
         return "❌ Error: Campaign not found or doesn't belong to this server."
-    
-    # Get buttons
     buttons = await db.campaigns.get_campaign_forms(campaign_id)
-    
-    # Build message
-    # Build message - Flattened (No Embeds) as requested
     content = campaign.get('message_content') or ""
-    
-    # Prepend title if exists
     if campaign.get('embed_title'):
         content = f"**{campaign.get('embed_title')}**\n{content}"
-        
-    # Append description if exists
     if campaign.get('embed_description'):
         content += f"\n\n{campaign.get('embed_description')}"
-    
-    # Append images as links (Discord will unfurl them usually, or user sees link)
     if campaign.get('embed_image_url'):
         content += f"\n{campaign['embed_image_url']}"
         
     if campaign.get('embed_thumbnail_url'):
          content += f"\n{campaign['embed_thumbnail_url']}"
-
-    # Force no embed object
     embed = None
-    
-    # Create view with buttons
     view = None
     if buttons:
         view = CampaignMessageView(campaign_id, buttons)
     
     success_count = 0
     fail_count = 0
-    
-    # Determine recipients based on target type
     recipients = []
     
     if campaign['target_type'] == 'dm':
-        # Send to all members
         recipients = [m for m in guild.members if not m.bot]
         
     elif campaign['target_type'] == 'roles':
-        # Send to members with specific roles
         if campaign.get('target_role_ids'):
             role_ids = campaign['target_role_ids']  # Already parsed by repository
             for member in guild.members:
@@ -290,7 +263,6 @@ async def send_campaign(
             return "❌ Error: No target roles set for this campaign."
             
     elif campaign['target_type'] == 'users':
-        # Send to specific users
         if campaign.get('target_user_ids'):
             user_ids = campaign['target_user_ids']  # Already parsed by repository
             for user_id in user_ids:
@@ -302,12 +274,11 @@ async def send_campaign(
     
     try:
         if campaign['target_type'] in ['dm', 'roles', 'users']:
-            # Send DMs to recipients
             for member in recipients:
                 try:
                     await member.send(content=content, embed=embed, view=view)
                     success_count += 1
-                except:
+                except Exception:
                     fail_count += 1
             
             result = (
@@ -332,8 +303,6 @@ async def send_campaign(
                 success_count = 1
             except ValueError:
                 return "❌ Error: channel_id must be a valid ID."
-        
-        # Update campaign status
         if success_count > 0:
             await db.campaigns.update_campaign_status(campaign_id, 'sent')
         
@@ -367,7 +336,7 @@ async def list_campaigns(**kwargs):
         if not campaigns:
             return "No campaigns found in this server."
         
-        result = f"**Campaigns in this server:**\n\n"
+        result = "**Campaigns in this server:**\n\n"
         
         for campaign in campaigns:
             response_count = await db.campaigns.get_response_count(campaign['id'])
@@ -432,9 +401,6 @@ async def get_campaign_responses(campaign_id: int, **kwargs):
     except Exception as e:
         logger.error(f"Error getting responses: {e}")
         return f"❌ Error getting responses: {str(e)}"
-
-
-# Tool declarations for Gemini
 CAMPAIGN_TOOLS = [
     create_campaign_tool,
     add_campaign_button,

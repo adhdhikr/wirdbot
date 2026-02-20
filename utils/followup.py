@@ -1,6 +1,8 @@
-import nextcord as discord
-from database import db
 import logging
+
+import nextcord as discord
+
+from database import db
 
 logger = logging.getLogger(__name__)
 

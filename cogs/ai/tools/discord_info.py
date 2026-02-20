@@ -2,8 +2,10 @@
 Safe, read-only tools for gathering detailed information about the Discord server, members, and channels.
 Use these tools INSTEAD of execute_discord_code for simple information retrieval.
 """
-import nextcord as discord
 from typing import Optional
+
+import nextcord as discord
+
 
 async def get_server_info(**kwargs) -> str:
     """
@@ -12,7 +14,6 @@ async def get_server_info(**kwargs) -> str:
     """
     guild = kwargs.get('guild')
     if not guild:
-         # Try logic to fetch if not directly in kwargs but usually injected
         return "Error: No server context found."
 
     owner = guild.owner
@@ -40,18 +41,16 @@ async def get_member_info(user_id: Optional[str] = None, query: Optional[str] = 
         query: Name or mention to search for if ID not provided (optional).
     """
     guild = kwargs.get('guild')
-    if not guild: return "Error: No server context."
+    if not guild:
+        return "Error: No server context."
     
     target = None
-    
-    # helper to find member
     async def find_member(uid, q):
         if uid:
             try:
-                # Stripping non-numeric just in case
                 uid = int(str(uid).strip('<@!>'))
                 return guild.get_member(uid) or await guild.fetch_member(uid)
-            except:
+            except Exception:
                 pass
         if q:
              q = q.lower()
@@ -61,7 +60,6 @@ async def get_member_info(user_id: Optional[str] = None, query: Optional[str] = 
     target = await find_member(user_id, query)
     
     if not target:
-        # If no target specified, use the author
         if not user_id and not query:
              target = kwargs.get('message').author if kwargs.get('message') else None
     
@@ -71,7 +69,8 @@ async def get_member_info(user_id: Optional[str] = None, query: Optional[str] = 
     roles = [r.name for r in target.roles if r.name != "@everyone"]
     roles.reverse() # High rank first
     role_str = ", ".join(roles[:10])
-    if len(roles) > 10: role_str += f" (+{len(roles)-10} more)"
+    if len(roles) > 10:
+        role_str += f" (+{len(roles)-10} more)"
     
     joined = target.joined_at.strftime("%Y-%m-%d") if target.joined_at else "Unknown"
     created = target.created_at.strftime("%Y-%m-%d")
@@ -104,23 +103,25 @@ async def get_channel_info(channel_id: Optional[str] = None, query: Optional[str
     Get info about a channel.
     """
     guild = kwargs.get('guild')
-    if not guild: return "Error: No server context."
+    if not guild:
+        return "Error: No server context."
     
     target = None
     if channel_id:
         try:
              cid = int(str(channel_id).strip('<#>'))
              target = guild.get_channel(cid)
-        except: pass
+        except Exception:
+            pass
         
     if not target and query:
          target = next((c for c in guild.channels if query.lower() in c.name.lower()), None)
          
     if not target:
-        # Use current channel
         target = kwargs.get('channel')
         
-    if not target: return "Channel not found."
+    if not target:
+        return "Channel not found."
 
     info = [
         f"**Channel:** #{target.name} (ID: {target.id})",
@@ -147,10 +148,9 @@ async def check_permissions(user_id: Optional[str] = None, channel_id: Optional[
         channel_id: Target channel ID. If None, uses current channel.
     """
     guild = kwargs.get('guild')
-    bot = kwargs.get('bot')
-    if not guild: return "Error: No server context."
-    
-    # Determine target user
+    kwargs.get('bot')
+    if not guild:
+        return "Error: No server context."
     member = None
     if user_id:
         try:
@@ -161,28 +161,24 @@ async def check_permissions(user_id: Optional[str] = None, channel_id: Optional[
     else:
         member = guild.me # Bot itself
         
-    if not member: return "Member not found."
-    
-    # Determine target channel
+    if not member:
+        return "Member not found."
     channel = None
     if channel_id:
          try:
              cid = int(str(channel_id).strip('<#>'))
              channel = guild.get_channel(cid)
-         except: pass
+         except Exception:
+             pass
     else:
         channel = kwargs.get('channel')
         
-    if not channel: return "Channel context missing."
-
-    # Get permissions
+    if not channel:
+        return "Channel context missing."
     perms = channel.permissions_for(member)
     
     allowed = [p[0].replace('_', ' ').title() for p in perms if p[1]]
-    denied = [p[0].replace('_', ' ').title() for p in perms if not p[1]]
-    
-    # Clean output - maybe just show important ones or a summary
-    # Or return a condensed list
+    [p[0].replace('_', ' ').title() for p in perms if not p[1]]
     
     is_admin = perms.administrator
     
@@ -190,7 +186,6 @@ async def check_permissions(user_id: Optional[str] = None, channel_id: Optional[
     if is_admin:
         summary += "✅ **ADMINISTRATOR** (Has all permissions)\n"
     else:
-        # Highlight Key Perms
         key_perms = ['Manage Guild', 'Manage Roles', 'Manage Channels', 'Kick Members', 'Ban Members', 
                      'Send Messages', 'Embed Links', 'Attach Files', 'Manage Messages', 'Mention Everyone', 'Connect']
         
@@ -204,23 +199,27 @@ async def get_role_info(role_id: Optional[str] = None, query: Optional[str] = No
     Get detailed info about a role.
     """
     guild = kwargs.get('guild')
-    if not guild: return "Error: No server context."
+    if not guild:
+        return "Error: No server context."
     
     target = None
     if role_id:
         try:
              rid = int(str(role_id).strip('<@&>'))
              target = guild.get_role(rid)
-        except: pass
+        except Exception:
+            pass
         
     if not target and query:
          target = next((r for r in guild.roles if query.lower() in r.name.lower()), None)
          
-    if not target: return "Role not found."
+    if not target:
+        return "Role not found."
 
     perms = [p[0].replace('_', ' ').title() for p in target.permissions if p[1]]
     perm_summary = "All" if target.permissions.administrator else ", ".join(perms[:10])
-    if len(perms) > 10 and not target.permissions.administrator: perm_summary += f" (+{len(perms)-10} more)"
+    if len(perms) > 10 and not target.permissions.administrator:
+        perm_summary += f" (+{len(perms)-10} more)"
 
     info = [
         f"**Role:** {target.name} (ID: {target.id})",
@@ -244,21 +243,19 @@ async def get_channels(mode: str = "text", category_id: Optional[str] = None, **
     """
     guild = kwargs.get('guild')
     message = kwargs.get('message')
-    if not guild or not message: return "Error: No server/user context."
+    if not guild or not message:
+        return "Error: No server/user context."
     
     author = message.author
     
     channels = guild.channels
     target_channels = []
-    
-    # Filter by Category if provided
     if category_id:
          try:
              cid = int(str(category_id))
              channels = [c for c in channels if c.category_id == cid]
-         except: pass
-
-    # Filter by Permissions (View Channel)
+         except Exception:
+             pass
     channels = [c for c in channels if c.permissions_for(author).view_channel]
 
     if mode == 'text':
@@ -269,14 +266,10 @@ async def get_channels(mode: str = "text", category_id: Optional[str] = None, **
         target_channels = [c for c in channels if isinstance(c, discord.CategoryChannel)]
     else:
         target_channels = channels
-
-    # Sort by position
     target_channels.sort(key=lambda c: c.position)
     
     if not target_channels:
         return "No accessible channels found matching criteria."
-        
-    # Create list
     lines = [f"**Channels ({mode}) visible to {author.display_name}:**"]
     for c in target_channels[:30]: # Limit to avoid huge messages
         lines.append(f"- {c.name} (ID: {c.id})")

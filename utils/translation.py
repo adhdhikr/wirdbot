@@ -1,6 +1,8 @@
-import aiohttp
 import logging
-from typing import List, Dict, Any, Optional
+from typing import Any, Dict, List, Optional
+
+import aiohttp
+
 from database import db
 
 logger = logging.getLogger(__name__)
@@ -14,14 +16,10 @@ LANGUAGE_EDITIONS = {
 
 async def fetch_page_translations(page_number: int, language: str = 'eng') -> Optional[List[Dict[str, Any]]]:
     """Fetch translations for a specific page and language with caching."""
-    
-    # Try to get from cache first
     cached_data = await db.get_translation_cache(page_number, language)
     if cached_data:
         logger.debug(f"Translation cache hit for page {page_number}, language {language}")
         return cached_data
-    
-    # Cache miss - fetch from API
     logger.debug(f"Translation cache miss for page {page_number}, language {language} - fetching from API")
     edition = LANGUAGE_EDITIONS.get(language, LANGUAGE_EDITIONS['eng'])
     url = f"{TRANSLATION_API_BASE}/{edition}/pages/{page_number}.json"
@@ -32,8 +30,6 @@ async def fetch_page_translations(page_number: int, language: str = 'eng') -> Op
                 if response.status == 200:
                     data = await response.json()
                     translations = data.get('pages', [])
-                    
-                    # Cache the result
                     if translations:
                         await db.set_translation_cache(page_number, language, translations)
                         logger.debug(f"Cached translation for page {page_number}, language {language}")

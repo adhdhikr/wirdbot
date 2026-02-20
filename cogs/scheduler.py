@@ -1,11 +1,12 @@
-import nextcord as discord
 import asyncio
-from nextcord.ext import commands, tasks
-from database import db
-from datetime import datetime
-from utils.scheduler import get_prayer_times
-from utils.page_sender import send_daily_pages
 import logging
+from datetime import datetime
+
+from nextcord.ext import commands, tasks
+
+from database import db
+from utils.page_sender import send_daily_pages
+from utils.scheduler import get_prayer_times
 
 logger = logging.getLogger(__name__)
 
@@ -66,7 +67,6 @@ class SchedulerCog(commands.Cog):
     @scheduler_loop.before_loop
     async def before_scheduler(self):
         await self.bot.wait_until_ready()
-        # Wait for database connection to be established
         while not db.connection.db:
             await asyncio.sleep(1)
 

@@ -1,4 +1,5 @@
-from typing import Optional, Dict, Any, List
+from typing import Any, Dict, List, Optional
+
 from db.connection import DatabaseConnection
 
 
@@ -59,7 +60,6 @@ class SessionRepository:
 
     async def get_previous_session(self, guild_id: int, current_session_id: int) -> Optional[Dict[str, Any]]:
         """Get the session immediately preceding the current one."""
-        # First get current session to know its created_at
         current = await self.get_session_by_id(current_session_id)
         if not current:
             return None

@@ -1,8 +1,9 @@
-import nextcord as discord
-from database import db
-from views import RegistrationView
-from datetime import datetime, timedelta
 import logging
+from datetime import datetime
+
+import nextcord as discord
+
+from database import db
 
 logger = logging.getLogger(__name__)
 

@@ -1,7 +1,9 @@
-import nextcord as discord
 import io
 import logging
+
+import nextcord as discord
 from google.genai import types
+
 from .tools import _execute_discord_code_internal
 
 logger = logging.getLogger(__name__)
@@ -18,11 +20,8 @@ class CodeApprovalView(discord.ui.View):
         self.value = None
 
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
-        # Allow command author
         if interaction.user.id == self.ctx.author.id:
             return True
-            
-        # Allow bot owner
         if await self.cog.bot.is_owner(interaction.user):
             return True
             
@@ -42,13 +41,9 @@ class CodeApprovalView(discord.ui.View):
         self.value = True
         for child in self.children:
             child.disabled = True
-        
-        # Edit message to show disabled buttons
         updated_message = await interaction.response.edit_message(view=self)
         if not updated_message:
              updated_message = interaction.message
-
-        # Execute the code
         try:
             result = await _execute_discord_code_internal(self.cog.bot, self.code, {
                 'ctx': self.ctx,
@@ -72,7 +67,6 @@ class CodeApprovalView(discord.ui.View):
 
 
         try:
-            # Display output
             try:
                 if len(result) > 1900:
                     file = discord.File(io.StringIO(result), filename="execution_output.txt")
@@ -90,26 +84,15 @@ class CodeApprovalView(discord.ui.View):
             except Exception as e:
                 logger.error(f"Error displaying output: {e}")
                 pass
-
-
-            # Resume AI Chat with the result
-            # Using new SDK types
             exec_part = types.Part(
                 function_response=types.FunctionResponse(
                     name='execute_discord_code',
                     response={'result': str(result)}
                 )
             )
-            
-            # Combine with other tool parts if multiple tools were called
             all_parts = self.other_tool_parts + [exec_part]
-            
-            # Send to model using new SDK method
-            # send_message takes iterables of content/parts
             response = await self.chat_session.send_message(all_parts)
-            
-            # Process model's next response
-            response_text = await self.cog._process_chat_response(self.chat_session, response, self.message, existing_message=updated_message)
+            response_text = await self.cog.chat_handler.process_chat_response(self.chat_session, response, self.message, existing_message=updated_message)
             if response_text:
                 await self.message.reply(response_text)
                 
@@ -122,20 +105,15 @@ class CodeApprovalView(discord.ui.View):
         self.value = False
         for child in self.children:
             child.disabled = True
-            
-        # Strip generating/thinking status and format
         current_content = interaction.message.content if interaction.message else "Proposed Code:"
         lines = current_content.split('\n')
-        cleaned = [l for l in lines if not ('🧠 Thinking' in l or 'loading:' in l)]
+        cleaned = [line for line in lines if not ('🧠 Thinking' in line or 'loading:' in line)]
         current_content = '\n'.join(cleaned).strip()
         
         new_content = current_content + "\n\n❌ **Execution Cancelled by User**"
         
         if interaction:
              await interaction.response.edit_message(content=new_content, view=self)
-        
-        # Stop everything. Do NOT resume chat.
-        # Clean up from pending list if tracked
         if self.message.channel.id in self.cog.pending_approvals:
             del self.cog.pending_approvals[self.message.channel.id]
 
@@ -144,11 +122,9 @@ class CodeApprovalView(discord.ui.View):
         self.value = False
         for child in self.children:
             child.disabled = True
-        
-        # Strip generating/thinking status
         current_content = self.message.content
         lines = current_content.split('\n')
-        cleaned = [l for l in lines if not ('🧠 Thinking' in l or 'loading:' in l)]
+        cleaned = [line for line in lines if not ('🧠 Thinking' in line or 'loading:' in line)]
         current_content = '\n'.join(cleaned).strip()
         
         new_content = current_content + f"\n\n🛑 **Auto-Rejected: Interrupted by {interrupter_name}**"
@@ -157,8 +133,6 @@ class CodeApprovalView(discord.ui.View):
             await self.message.edit(content=new_content, view=self)
         except Exception as e:
             logger.error(f"Failed to edit message for auto-rejection: {e}")
-            
-        # Do not resume chat.
         if self.message.channel.id in self.cog.pending_approvals:
             del self.cog.pending_approvals[self.message.channel.id]
 
@@ -184,9 +158,7 @@ class ContinueExecutionView(discord.ui.View):
     @discord.ui.button(label="Continue", style=discord.ButtonStyle.success, emoji="▶️")
     async def continue_running(self, button: discord.ui.Button, interaction: discord.Interaction):
         await interaction.response.edit_message(content="🔄 **Continuing execution...**", view=None)
-
-        # Process the response again
-        await self.cog._process_chat_response(
+        await self.cog.chat_handler.process_chat_response(
             self.chat_session, 
             self.response, 
             self.message, 
@@ -205,9 +177,8 @@ class SandboxExecutionView(discord.ui.View):
         self.logs = execution_logs
         
         for i, log in enumerate(execution_logs):
-            if i >= 25: break
-            
-            # log['index'] is 1-based
+            if i >= 25:
+                break
             btn = discord.ui.Button(
                 label=f">_[{log['index']}]",
                 style=discord.ButtonStyle.secondary,
@@ -220,13 +191,10 @@ class SandboxExecutionView(discord.ui.View):
         async def callback(interaction: discord.Interaction):
             code = log['code']
             output = log['output']
-            
-            # Formatting for the ephemeral message
             msg = f"### 🚀 Execution #{log['index']}\n\n"
             msg += f"**Code:**\n```python\n{code}\n```\n"
             
             if output:
-                # Output already contains headers like **Output:** and **Result Variables:** from the tool
                 msg += output
             else:
                 msg += "✅ *Script ran with no output.*"

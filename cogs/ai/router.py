@@ -3,13 +3,12 @@ Router module for Intelligent Model Switching.
 Evaluates query complexity to select the best model.
 """
 import logging
+
 from google import genai
+
 from config import GEMINI_API_KEY
 
 logger = logging.getLogger(__name__)
-
-# Model Configuration
-# Model Configuration
 EVALUATOR_MODEL = "gemini-2.5-flash-lite"
 SIMPLE_MODEL = "gemini-3-flash-preview"
 COMPLEX_MODEL = "gemini-3-pro-preview"
@@ -29,14 +28,11 @@ async def evaluate_complexity(text: str) -> str:
     Evaluates the complexity of a user query using a fast model.
     Returns: 'SIMPLE' or 'COMPLEX'
     """
-    # 1. Zero-Cost Heuristic: Short messages are always SIMPLE
     if not text or len(text.strip()) < 20: 
         return "SIMPLE"
         
     try:
         client = genai.Client(api_key=GEMINI_API_KEY)
-        
-        # Use aio client for async
         response = await client.aio.models.generate_content(
             model=EVALUATOR_MODEL,
             contents=[ROUTER_PROMPT, f"User Message: {text}"],
@@ -52,5 +48,4 @@ async def evaluate_complexity(text: str) -> str:
         
     except Exception as e:
         logger.error(f"Router evaluation failed: {e}")
-        # Fail safe to SIMPLE (or PRO if we want to be safe? usually Simple is safer/cheaper)
         return "SIMPLE"

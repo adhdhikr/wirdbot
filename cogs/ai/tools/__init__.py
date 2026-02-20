@@ -13,39 +13,75 @@ This package organizes all AI tools into categorical modules:
 Built-in Gemini capabilities are also configured here:
 - Code execution (sandboxed) - Disabled for Gemini 3 Preview
 """
-from .quran import QURAN_TOOLS, lookup_quran_page, lookup_tafsir, show_quran_page, get_ayah_safe, get_page_safe, search_quran_safe
-from .admin import ADMIN_TOOLS, execute_sql, search_codebase, read_file, get_db_schema, update_server_config
-from .user import USER_TOOLS, get_my_stats, set_my_streak_emoji
-from .bot_management import BOT_MANAGEMENT_TOOLS, force_bot_status, add_bot_status_option
-from .discord_actions import DISCORD_TOOLS, execute_discord_code, _execute_discord_code_internal
-from .web import WEB_TOOLS, search_web, read_url
-from .vision import VISION_TOOLS, analyze_image
+from .admin import (
+    ADMIN_TOOLS,
+    execute_sql,
+    get_db_schema,
+    read_file,
+    search_codebase,
+    update_server_config,
+)
+from .bot_management import (
+    BOT_MANAGEMENT_TOOLS,
+    add_bot_status_option,
+    force_bot_status,
+)
+from .campaign import (
+    CAMPAIGN_TOOLS,
+    add_campaign_button,
+    create_campaign_tool,
+    get_campaign_responses,
+    list_campaigns,
+    send_campaign,
+)
+from .cloudconvert import CLOUDCONVERT_TOOLS, check_cloudconvert_status, convert_file
+from .discord_actions import (
+    DISCORD_TOOLS,
+    _execute_discord_code_internal,
+    execute_discord_code,
+)
+from .discord_info import (
+    DISCORD_INFO_TOOLS,
+    check_permissions,
+    get_channel_info,
+    get_channels,
+    get_member_info,
+    get_role_info,
+    get_server_info,
+)
 from .memory import MEMORY_TOOLS
+from .quran import (
+    QURAN_TOOLS,
+    get_ayah_safe,
+    get_page_safe,
+    lookup_quran_page,
+    lookup_tafsir,
+    search_quran_safe,
+    show_quran_page,
+)
 from .sandbox import SANDBOX_TOOLS
-from .discord_info import DISCORD_INFO_TOOLS, get_server_info, get_member_info, get_channel_info, check_permissions, get_role_info, get_channels
+from .user import USER_TOOLS, get_my_stats, set_my_streak_emoji
 from .user_space import (
     USER_SPACE_TOOLS,
-    save_to_space,
-    upload_attachment_to_space,
-    save_message_attachments,
-    read_from_space,
-    extract_pdf_images,
-    list_space,
-    get_space_info,
     delete_from_space,
-    zip_files,
-    unzip_file,
-    share_file,
+    extract_pdf_images,
     get_file_for_discord,
+    get_space_info,
+    list_space,
+    read_from_space,
+    save_message_attachments,
+    save_to_space,
+    share_file,
+    unzip_file,
+    upload_attachment_to_space,
+    zip_files,
 )
-from .cloudconvert import CLOUDCONVERT_TOOLS, convert_file, check_cloudconvert_status
-from .campaign import CAMPAIGN_TOOLS, create_campaign_tool, add_campaign_button, send_campaign, list_campaigns, get_campaign_responses
+from .vision import VISION_TOOLS, analyze_image
+from .web import WEB_TOOLS, read_url, search_web
 
-# All custom function-calling tools
 CUSTOM_TOOLS = QURAN_TOOLS + ADMIN_TOOLS + USER_TOOLS + BOT_MANAGEMENT_TOOLS + DISCORD_TOOLS + DISCORD_INFO_TOOLS + WEB_TOOLS + VISION_TOOLS + MEMORY_TOOLS + SANDBOX_TOOLS + USER_SPACE_TOOLS + CLOUDCONVERT_TOOLS + CAMPAIGN_TOOLS
 
 __all__ = [
-    # Tool lists
     'CUSTOM_TOOLS',
     'QURAN_TOOLS',
     'ADMIN_TOOLS', 
@@ -60,8 +96,6 @@ __all__ = [
     'USER_SPACE_TOOLS',
     'CLOUDCONVERT_TOOLS',
     'CAMPAIGN_TOOLS',
-    
-    # Individual tools for dispatcher
     'lookup_quran_page',
     'lookup_tafsir',
     'show_quran_page',
@@ -87,7 +121,6 @@ __all__ = [
     'check_permissions',
     'get_role_info',
     'get_channels',
-    # User space tools
     'save_to_space',
     'upload_attachment_to_space',
     'save_message_attachments',
@@ -101,10 +134,11 @@ __all__ = [
     'get_file_for_discord',
     'convert_file',
     'check_cloudconvert_status',
-    # Campaign tools
     'create_campaign_tool',
     'add_campaign_button',
     'send_campaign',
     'list_campaigns',
     'get_campaign_responses',
+    'extract_pdf_images',
+    'analyze_image',
 ]

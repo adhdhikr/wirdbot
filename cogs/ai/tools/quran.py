@@ -1,13 +1,15 @@
 """
 Quran and Tafsir related tools for the AI cog.
 """
-import logging
 import io
+import logging
+
 import aiohttp
+
 from config import API_BASE_URL
-from utils.tafsir import fetch_tafsir_for_ayah, TAFSIR_EDITIONS
-from utils.translation import fetch_page_translations
 from utils.quran import get_ayah, get_page, search_quran
+from utils.tafsir import TAFSIR_EDITIONS, fetch_tafsir_for_ayah
+from utils.translation import fetch_page_translations
 
 logger = logging.getLogger(__name__)
 
@@ -88,8 +90,6 @@ async def show_quran_page(page_number: int, **kwargs):
     channel = kwargs.get('channel')
     if not channel:
         return "Error: Cannot upload image without channel context."
-        
-    # Get mushaf_type from config if available (passed in kwargs or default)
     mushaf_type = kwargs.get('mushaf_type', 'madani')
 
     try:
@@ -162,13 +162,10 @@ async def search_quran_safe(keyword: str, surah: str = 'all', edition: str = 'qu
     if str(surah).lower() != 'all':
         try:
             surah = str(int(float(surah)))
-        except:
+        except Exception:
             pass  # Keep as is if not a number
             
     return await search_quran(keyword, surah, edition, language)
-
-
-# Export list
 QURAN_TOOLS = [
     lookup_quran_page,
     lookup_tafsir,

@@ -3,10 +3,10 @@ PDF Reader Utility
 Extracts text and images from PDF files using PyMuPDF (fitz).
 Preserves visual order - text and images are extracted in the order they appear.
 """
-import logging
 import asyncio
+import logging
 from pathlib import Path
-from typing import Optional, List, Dict, Any
+from typing import Any, Dict, List
 
 logger = logging.getLogger(__name__)
 
@@ -114,20 +114,15 @@ def _extract_ordered_sync(
     for page_num in range(pages_to_read):
         page = doc[page_num]
         page_elements = []  # Elements with y-position for sorting
-        
-        # Get images for this page with their bounding boxes
         image_rects = {}  # xref -> rect
         for img in page.get_images(full=True):
             xref = img[0]
             try:
-                # Get all instances of this image on the page
                 rects = page.get_image_rects(xref)
                 if rects:
                     image_rects[xref] = rects[0]  # Use first occurrence
-            except:
+            except Exception:
                 pass
-        
-        # Get text blocks with positions
         blocks = page.get_text("dict", flags=fitz.TEXT_PRESERVE_WHITESPACE)["blocks"]
         
         for block in blocks:
@@ -149,16 +144,12 @@ def _extract_ordered_sync(
                         "content": "\n".join(text_lines),
                         "y_pos": y_pos
                     })
-        
-        # Add images in their positions
         if output_dir:
             for xref, rect in image_rects.items():
                 try:
                     base_image = doc.extract_image(xref)
                     width = base_image["width"]
                     height = base_image["height"]
-                    
-                    # Skip tiny images
                     if width < min_image_size or height < min_image_size:
                         continue
                     
@@ -181,8 +172,6 @@ def _extract_ordered_sync(
                         "size_bytes": len(image_bytes)
                     }
                     all_images.append(img_info)
-                    
-                    # Add to page elements at image position
                     page_elements.append({
                         "type": "image",
                         "content": f"[IMAGE: {filename} ({width}x{height})]",
@@ -193,11 +182,7 @@ def _extract_ordered_sync(
                 except Exception as e:
                     logger.warning(f"Failed to extract image {xref}: {e}")
                     continue
-        
-        # Sort elements by y position (top to bottom)
         page_elements.sort(key=lambda x: x["y_pos"])
-        
-        # Build page content
         if page_elements:
             all_content.append({
                 "type": "page_header",
@@ -206,8 +191,6 @@ def _extract_ordered_sync(
             all_content.extend(page_elements)
     
     doc.close()
-    
-    # Build combined text with image placeholders in order
     combined_parts = []
     for item in all_content:
         combined_parts.append(item["content"])

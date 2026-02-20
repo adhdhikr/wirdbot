@@ -11,7 +11,6 @@ onami
 ddgs
 pytz
 requests
-# User file space dependencies
 PyMuPDF
 python-docx
 math2docx

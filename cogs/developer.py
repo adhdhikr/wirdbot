@@ -1,15 +1,14 @@
-import nextcord as discord
-from nextcord.ext import commands
-import traceback
 import io
 import textwrap
+import traceback
 from contextlib import redirect_stdout
+
+from nextcord.ext import commands
+
 
 class DeveloperCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-
-    # Minimal Eval Command for Owner (Classic implementation)
     @commands.command(name='eval', hidden=True)
     @commands.is_owner()
     async def _eval(self, ctx, *, body: str):
@@ -23,11 +22,6 @@ class DeveloperCog(commands.Cog):
             'message': ctx.message,
             '_': None
         }
-
-        # SECURITY: Do NOT use globals() - it exposes config/secrets
-        # Instead, explicitly import only what's needed
-        # If you need a module, import it in the eval body itself
-        # env.update(globals())  # REMOVED - security risk
 
         body = self.cleanup_code(body)
         stdout = io.StringIO()
@@ -43,14 +37,14 @@ class DeveloperCog(commands.Cog):
         try:
             with redirect_stdout(stdout):
                 ret = await func()
-        except Exception as e:
+        except Exception:
             value = stdout.getvalue()
             await ctx.send(f'```py\n{value}{traceback.format_exc()}\n```')
         else:
             value = stdout.getvalue()
             try:
                 await ctx.message.add_reaction('\u2705')
-            except:
+            except Exception:
                 pass
 
             if ret is None:
@@ -62,11 +56,8 @@ class DeveloperCog(commands.Cog):
 
     def cleanup_code(self, content):
         """Automatically removes code blocks from the code."""
-        # remove ```py\n```
         if content.startswith('```') and content.endswith('```'):
             return '\n'.join(content.split('\n')[1:-1])
-
-        # remove `foo`
         return content.strip('` \n')
 
 def setup(bot):

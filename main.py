@@ -1,9 +1,10 @@
-import nextcord as discord
-from nextcord.ext import commands
 import logging
 from pathlib import Path
 
-from config import DISCORD_TOKEN, DEBUG_MODE, DEBUG_GUILD_IDS, OWNER_IDS
+import nextcord as discord
+from nextcord.ext import commands
+
+from config import DEBUG_GUILD_IDS, DEBUG_MODE, DISCORD_TOKEN, OWNER_IDS
 from database import db
 
 logging.basicConfig(
@@ -15,9 +16,6 @@ logger = logging.getLogger(__name__)
 intents = discord.Intents.default()
 intents.message_content = True
 intents.members = True
-
-# Nextcord commands.Bot does not support debug_guilds in init like Pycord
-# We will rely on global registration or sync, or pass guild_ids to slash commands if strictly needed for debug
 bot = commands.Bot(intents=intents, command_prefix="!", owner_ids=OWNER_IDS)
 
 if DEBUG_MODE:
@@ -35,7 +33,6 @@ async def on_ready():
 
 @bot.event 
 async def on_interaction(interaction: discord.Interaction):
-    # Handle completion button interactions that aren't handled by registered views
     if interaction.type == discord.InteractionType.component:
         custom_id = interaction.data.get('custom_id', '')
         if custom_id.startswith('complete_'):
@@ -67,9 +64,6 @@ async def on_interaction(interaction: discord.Interaction):
                 except (ValueError, IndexError):
                     logger.warning(f"Invalid tafsir button custom_id: {custom_id}")
                     return
-            # Else, not handled here, let it go to normal processing
-    
-    # Continue with normal processing for other interactions
     try:
         await bot.process_application_commands(interaction)
     except Exception as e:
@@ -98,8 +92,6 @@ async def on_guild_join(guild: discord.Guild):
     )
     
     embed.set_footer(text="Run /setup to get started!")
-    
-    # Try to send to system channel or first available text channel
     target_channel = guild.system_channel
     if not target_channel:
         for channel in guild.text_channels:
@@ -119,8 +111,6 @@ async def on_guild_join(guild: discord.Guild):
 def load_extensions():
     bot.load_extension('onami')
     cogs_dir = Path(__file__).parent / "cogs"
-    
-    # Load top-level cog files
     for cog_file in cogs_dir.glob("*.py"):
         if cog_file.stem.startswith("_"):
             continue
@@ -131,8 +121,6 @@ def load_extensions():
             logger.info(f"Loaded extension: {cog_name}")
         except Exception as e:
             logger.error(f"Failed to load extension {cog_name}: {e}")
-    
-    # Load cog packages (subdirectories with __init__.py)
     for cog_dir in cogs_dir.iterdir():
         if cog_dir.is_dir() and not cog_dir.stem.startswith("_"):
             init_file = cog_dir / "__init__.py"

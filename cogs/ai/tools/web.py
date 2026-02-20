@@ -2,17 +2,16 @@
 Web search and URL reading tools.
 Enhanced with search-in-page, link extraction, and smart content features.
 """
-import logging
-import aiohttp
 import asyncio
+import logging
 import re
-from bs4 import BeautifulSoup
-from ddgs import DDGS
 from typing import Optional
 
-logger = logging.getLogger(__name__)
+import aiohttp
+from bs4 import BeautifulSoup
+from ddgs import DDGS
 
-# Constants
+logger = logging.getLogger(__name__)
 MAX_CONTENT_LENGTH = 25000  # Max chars to return
 REQUEST_TIMEOUT = 15  # seconds
 USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
@@ -41,17 +40,12 @@ async def _fetch_url(url: str) -> tuple[Optional[str], Optional[str]]:
 
 def _clean_html(soup: BeautifulSoup) -> str:
     """Extract and clean text from BeautifulSoup object."""
-    # Remove unwanted elements
     for element in soup(["script", "style", "nav", "footer", "header", "form", "aside", "iframe", "noscript"]):
         element.extract()
     
     text = soup.get_text(separator='\n')
-    
-    # Clean up whitespace
     lines = [line.strip() for line in text.splitlines()]
     text = '\n'.join(line for line in lines if line)
-    
-    # Collapse multiple newlines
     text = re.sub(r'\n{3,}', '\n\n', text)
     
     return text
@@ -116,11 +110,7 @@ async def read_url(url: str, section: str = None):
             return f"Error: {error}"
         
         soup = BeautifulSoup(html, 'html.parser')
-        
-        # Get page title
         title = soup.title.string if soup.title else "No title"
-        
-        # Try to find main content area
         main_content = (
             soup.find('main') or 
             soup.find('article') or 
@@ -130,13 +120,9 @@ async def read_url(url: str, section: str = None):
         )
         
         text = _clean_html(main_content)
-        
-        # If section keyword provided, find and focus on that part
         if section:
             section_lower = section.lower()
             lines = text.split('\n')
-            
-            # Find section
             section_start = -1
             for i, line in enumerate(lines):
                 if section_lower in line.lower():
@@ -144,7 +130,6 @@ async def read_url(url: str, section: str = None):
                     break
             
             if section_start >= 0:
-                # Take ~100 lines from that section
                 focused = '\n'.join(lines[section_start:section_start + 100])
                 text = f"[Focused on section containing '{section}']\n\n{focused}"
         
@@ -182,12 +167,9 @@ async def search_in_url(url: str, search_term: str):
         matches = []
         for i, line in enumerate(lines):
             if search_lower in line.lower():
-                # Get context: line before, matching line, line after
                 start = max(0, i - 1)
                 end = min(len(lines), i + 2)
                 context = '\n'.join(lines[start:end])
-                
-                # Highlight the match
                 highlighted = re.sub(
                     f'({re.escape(search_term)})',
                     r'**\1**',
@@ -198,8 +180,6 @@ async def search_in_url(url: str, search_term: str):
         
         if not matches:
             return f"No matches found for '{search_term}' in {url}"
-        
-        # Deduplicate overlapping matches
         unique_matches = []
         seen = set()
         for m in matches:
@@ -243,17 +223,11 @@ async def extract_links(url: str, filter_keyword: str = None):
         for a in soup.find_all('a', href=True):
             href = a['href']
             text = a.get_text(strip=True)[:100] or "[No text]"
-            
-            # Make relative URLs absolute
             if href.startswith('/'):
                 from urllib.parse import urljoin
                 href = urljoin(url, href)
-            
-            # Skip anchors, javascript, mailto
             if href.startswith(('#', 'javascript:', 'mailto:')):
                 continue
-            
-            # Apply filter
             if filter_keyword:
                 if filter_keyword.lower() not in href.lower() and filter_keyword.lower() not in text.lower():
                     continue
@@ -261,9 +235,7 @@ async def extract_links(url: str, filter_keyword: str = None):
             links.append({'text': text, 'url': href})
         
         if not links:
-            return f"No links found" + (f" matching '{filter_keyword}'" if filter_keyword else "")
-        
-        # Deduplicate by URL
+            return "No links found" + (f" matching '{filter_keyword}'" if filter_keyword else "")
         seen = set()
         unique_links = []
         for link in links:
@@ -323,9 +295,6 @@ async def get_page_headings(url: str):
     except Exception as e:
         logger.error(f"Get headings error: {e}")
         return f"Error: {e}"
-
-
-# Export list
 WEB_TOOLS = [
     search_web,
     read_url,

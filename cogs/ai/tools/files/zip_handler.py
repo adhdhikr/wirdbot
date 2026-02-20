@@ -2,12 +2,12 @@
 ZIP Handler with Zip Bomb Detection
 Safely handles ZIP file operations with security checks.
 """
-import logging
 import asyncio
-import zipfile
+import logging
 import os
+import zipfile
 from pathlib import Path
-from typing import Tuple, List, Optional
+from typing import List, Tuple
 
 logger = logging.getLogger(__name__)
 
@@ -15,9 +15,6 @@ logger = logging.getLogger(__name__)
 class ZipSafetyError(Exception):
     """Raised when a ZIP file fails safety checks."""
     pass
-
-
-# Safety thresholds
 MAX_COMPRESSION_RATIO = 100  # Compressed:Uncompressed ratio
 MAX_NESTING_DEPTH = 5  # Maximum nested ZIP levels
 MAX_TOTAL_EXTRACTED_SIZE = 500 * 1024 * 1024  # 500MB max extraction
@@ -63,32 +60,19 @@ def _check_safety_sync(file_path: str, depth: int = 0) -> Tuple[bool, str]:
     
     try:
         with zipfile.ZipFile(file_path, 'r') as zf:
-            # Get file info
             infos = zf.infolist()
-            
-            # Check file count
             if len(infos) > MAX_FILE_COUNT:
                 return False, f"Too many files ({len(infos)} > {MAX_FILE_COUNT})"
-            
-            # Calculate sizes
             compressed_size = os.path.getsize(file_path)
             total_uncompressed = sum(info.file_size for info in infos)
-            
-            # Check total size
             if total_uncompressed > MAX_TOTAL_EXTRACTED_SIZE:
                 return False, f"Total size too large ({_format_size(total_uncompressed)} > {_format_size(MAX_TOTAL_EXTRACTED_SIZE)})"
-            
-            # Check compression ratio
             if compressed_size > 0:
                 ratio = total_uncompressed / compressed_size
                 if ratio > MAX_COMPRESSION_RATIO:
                     return False, f"Suspicious compression ratio ({ratio:.1f}:1 > {MAX_COMPRESSION_RATIO}:1)"
-            
-            # Check for nested ZIPs
             nested_zips = [info for info in infos if info.filename.lower().endswith('.zip')]
             if nested_zips and depth < MAX_NESTING_DEPTH:
-                # We don't recursively check nested ZIPs in this sync check
-                # Just warn if there are many
                 if len(nested_zips) > 10:
                     return False, f"Too many nested ZIP files ({len(nested_zips)})"
             
@@ -133,15 +117,12 @@ def _create_zip_sync(
     base_dir: str = None
 ) -> str:
     """Synchronous ZIP creation."""
-    # Ensure output directory exists
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
     
     with zipfile.ZipFile(output_path, 'w', zipfile.ZIP_DEFLATED) as zf:
         for file_path in files:
             if not os.path.exists(file_path):
                 continue
-            
-            # Determine archive name
             if base_dir:
                 arcname = os.path.relpath(file_path, base_dir)
             else:
@@ -189,29 +170,18 @@ async def extract_zip(
 def _extract_zip_sync(file_path: str, extract_to: str) -> List[str]:
     """Synchronous safe ZIP extraction."""
     extracted_files = []
-    
-    # Ensure extraction directory exists
     os.makedirs(extract_to, exist_ok=True)
     
     with zipfile.ZipFile(file_path, 'r') as zf:
         for info in zf.infolist():
-            # Skip directories
             if info.is_dir():
                 continue
-            
-            # Security: prevent path traversal attacks
             member_path = os.path.normpath(info.filename)
             if member_path.startswith('..') or os.path.isabs(member_path):
                 logger.warning(f"Skipping suspicious path: {info.filename}")
                 continue
-            
-            # Extract file
             target_path = os.path.join(extract_to, member_path)
-            
-            # Ensure parent directory exists
             os.makedirs(os.path.dirname(target_path), exist_ok=True)
-            
-            # Extract with size limit check during extraction
             with zf.open(info.filename) as src:
                 with open(target_path, 'wb') as dst:
                     bytes_written = 0

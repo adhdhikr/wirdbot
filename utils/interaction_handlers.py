@@ -1,16 +1,14 @@
 import nextcord as discord
+
 from database import db
-from utils.tafsir import fetch_page_tafsir, format_tafsir, TAFSIR_EDITIONS
-from utils.translation import fetch_page_translations, format_translations
 from utils.pagination import paginate_text
+from utils.tafsir import fetch_page_tafsir, format_tafsir
+from utils.translation import fetch_page_translations, format_translations
 from views import TafsirView, TranslationView
 
 
 async def handle_tafsir(interaction: discord.Interaction, page_number: int):
     """Handle tafsir button interaction"""
-    from database import db
-    from utils.tafsir import fetch_page_tafsir, format_tafsir, TAFSIR_EDITIONS
-    from utils.pagination import paginate_text
 
 
     tafsir_edition = await db.get_user_tafsir_preference(interaction.user.id, interaction.guild_id)
@@ -40,9 +38,6 @@ async def handle_tafsir(interaction: discord.Interaction, page_number: int):
 
 async def handle_translation(interaction: discord.Interaction, page_number: int):
     """Handle translation button interaction"""
-    from database import db
-    from utils.translation import fetch_page_translations, format_translations
-    from utils.pagination import paginate_text
 
 
     language = await db.get_user_language_preference(interaction.user.id, interaction.guild_id)

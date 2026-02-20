@@ -1,12 +1,14 @@
-import nextcord as discord
-from database import db
-from datetime import datetime
-from views import PageView
-from config import API_BASE_URL, MAX_PAGES
 import asyncio
-import logging
-import aiohttp
 import io
+import logging
+from datetime import datetime
+
+import aiohttp
+import nextcord as discord
+
+from config import API_BASE_URL, MAX_PAGES
+from database import db
+from views import PageView
 
 logger = logging.getLogger(__name__)
 
@@ -30,8 +32,6 @@ async def send_daily_pages(guild_id: int, bot) -> bool:
     
     message_ids = []
     today = datetime.utcnow().strftime("%Y-%m-%d")
-    
-    # Prepare role mention if exists
     role_mention = ""
     if guild_config.get('wird_role_id'):
         role = guild.get_role(guild_config['wird_role_id'])
@@ -46,7 +46,6 @@ async def send_daily_pages(guild_id: int, bot) -> bool:
         image_url = f"{API_BASE_URL}/mushaf/{mushaf_type}/page/{page_num}"
 
         try:
-            # Fetch the image from the API
             async with aiohttp.ClientSession() as session:
                 async with session.get(image_url) as response:
                     if response.status != 200:
@@ -55,8 +54,6 @@ async def send_daily_pages(guild_id: int, bot) -> bool:
 
                     image_data = await response.read()
                     image_file = discord.File(io.BytesIO(image_data), filename=f"page_{page_num}.png")
-
-            # Send the image directly with a simple message and the completion button
             view = PageView(page_num)
             mention = role_mention if i == 0 else ""
             content = f"{mention} 📖 **Page {page_num}** - Page {i+1} of {pages_per_day} for today".strip()

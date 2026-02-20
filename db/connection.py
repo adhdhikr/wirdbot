@@ -1,7 +1,8 @@
-import aiosqlite
+import logging
 from pathlib import Path
 from typing import Optional
-import logging
+
+import aiosqlite
 
 logger = logging.getLogger(__name__)
 
@@ -30,7 +31,6 @@ class DatabaseConnection:
         for migration_file in migration_files:
             version = int(migration_file.stem.split("_")[0])
             name = migration_file.stem
-            # Start a transaction for each migration, but don't nest
             already_applied = await self._is_migration_applied(version)
             if already_applied:
                 logger.debug(f"Migration {name} already applied, skipping")

@@ -1,9 +1,10 @@
 """Campaign views and modals for mass messaging system"""
-import nextcord as discord
-from nextcord.ui import View, Button, Modal, TextInput, Select
-from typing import Optional, Dict, List, Any
-import json
 import logging
+from typing import Any, Dict, List
+
+import nextcord as discord
+from nextcord.ui import Button, Modal, TextInput, View
+
 from database import db
 
 logger = logging.getLogger(__name__)
@@ -19,8 +20,6 @@ class CampaignFormModal(Modal):
         self.campaign_id = campaign_id
         self.response_channel_id = form_config.get('response_channel_id')
         self.form_fields = form_config.get('form_fields', [])
-        
-        # Add form fields dynamically (max 5 per modal)
         for field_config in self.form_fields[:5]:
             field = TextInput(
                 label=field_config.get('label', 'Input'),
@@ -30,24 +29,18 @@ class CampaignFormModal(Modal):
                 max_length=field_config.get('max_length', 1024),
                 style=discord.TextInputStyle.paragraph if field_config.get('multiline', False) else discord.TextInputStyle.short
             )
-            # Store field name as custom_id for retrieval
             field.custom_id = field_config.get('name', f'field_{len(self.children)}')
             self.add_item(field)
     
     async def callback(self, interaction: discord.Interaction):
         """Handle form submission"""
         logger.info(f"Form submission received from user {interaction.user.id} for campaign {self.campaign_id}")
-        
-        # Collect responses
         response_data = {}
         for child in self.children:
             if isinstance(child, TextInput):
                 response_data[child.custom_id] = child.value
-        
-        # Check for duplicate submission (per campaign)
         try:
             existing = await db.campaigns.get_responses(
-                # form_id=self.form_id, # Check against campaign, not just form
                 user_id=interaction.user.id,
                 campaign_id=self.campaign_id
             )
@@ -61,8 +54,6 @@ class CampaignFormModal(Modal):
         except Exception as e:
             logger.error(f"Error checking for duplicate response: {e}")
             pass  # Continue if check fails
-        
-        # Save to database
         try:
             await db.campaigns.save_response(
                 form_id=self.form_id,
@@ -72,46 +63,33 @@ class CampaignFormModal(Modal):
                 response_data=response_data
             )
             logger.info(f"Response saved for user {interaction.user.id} in campaign {self.campaign_id}")
-            
-            # Send confirmation to user
             await interaction.response.send_message(
                 "✅ Your response has been submitted! Thank you.", 
                 ephemeral=True
             )
-            
-            # Send response to designated channel if configured
             if self.response_channel_id:
                 channel = None
                 try:
-                    # 1. Try to get guild from interaction
                     guild = interaction.guild
-                    
-                    # 2. If no guild in interaction (e.g. DM), try to find it from campaign data
                     if not guild:
                         try:
-                            # We need to fetch the campaign to know which guild it belongs to
-                            # This is a bit expensive but necessary for DMs
                             campaign = await db.campaigns.get_campaign(self.campaign_id)
                             if campaign and campaign.get('guild_id'):
                                 guild = interaction.client.get_guild(campaign['guild_id'])
                                 if not guild:
                                     try:
                                         guild = await interaction.client.fetch_guild(campaign['guild_id'])
-                                    except:
+                                    except Exception:
                                         pass
                         except Exception as e:
                             logger.error(f"Error fetching campaign guild for response: {e}")
-
-                    # 3. Now try to find the channel using the best available method
                     if guild:
                         channel = guild.get_channel(self.response_channel_id)
                         if not channel:
                             try:
                                 channel = await guild.fetch_channel(self.response_channel_id)
-                            except:
+                            except Exception:
                                 pass
-                    
-                    # 4. Fallback to global client fetch (works if bot shares server)
                     if not channel:
                         channel = interaction.client.get_channel(self.response_channel_id)
                         if not channel:
@@ -122,14 +100,11 @@ class CampaignFormModal(Modal):
                     
                     if channel:
                         logger.info(f"Sending notification to channel {channel.id} in guild {channel.guild.name if channel.guild else 'Unknown'}")
-                        
-                        # Build plain text message
-                        msg_content = f"📝 **New Form Response**\n"
+                        msg_content = "📝 **New Form Response**\n"
                         msg_content += f"**User:** {interaction.user.name} (`{interaction.user.id}`)\n"
                         msg_content += f"**Campaign ID:** {self.campaign_id}\n\n"
                         
                         for field_name, field_value in response_data.items():
-                            # Find the label for this field
                             field_label = field_name
                             for field_config in self.form_fields:
                                 if field_config.get('name') == field_name:
@@ -146,10 +121,7 @@ class CampaignFormModal(Modal):
                             logger.error(f"Failed to send notification to channel: {e}")
                     else:
                         logger.error(f"Could not find response channel {self.response_channel_id} (Guild: {guild.id if guild else 'None'})")
-                        
-                        # Fallback: DM the campaign creator
                         try:
-                            # 1. Fetch campaign to get creator ID
                             campaign = await db.campaigns.get_campaign(self.campaign_id)
                             if campaign and campaign.get('created_by'):
                                 creator_id = campaign['created_by']
@@ -157,21 +129,18 @@ class CampaignFormModal(Modal):
                                 if not creator:
                                     try:
                                         creator = await interaction.client.fetch_user(creator_id)
-                                    except:
+                                    except Exception:
                                         pass
                                 
                                 if creator:
                                     logger.info(f"Sending fallback notification to campaign creator {creator.id}")
-                                    
-                                    # Build plain text message with warning
                                     msg_content = f"⚠️ **WARNING: Could not find response channel <#{self.response_channel_id}>**\n"
-                                    msg_content += f"Sending response here as fallback.\n\n"
-                                    msg_content += f"📝 **New Form Response**\n"
+                                    msg_content += "Sending response here as fallback.\n\n"
+                                    msg_content += "📝 **New Form Response**\n"
                                     msg_content += f"**User:** {interaction.user.name} (`{interaction.user.id}`)\n"
                                     msg_content += f"**Campaign ID:** {self.campaign_id}\n\n"
                                     
                                     for field_name, field_value in response_data.items():
-                                        # Find the label for this field
                                         field_label = field_name
                                         for field_config in self.form_fields:
                                             if field_config.get('name') == field_name:
@@ -195,20 +164,18 @@ class CampaignFormModal(Modal):
         
         except Exception as e:
             logger.error(f"Error executing callback: {e}")
-            # Only try to respond if we haven't already
             if not interaction.response.is_done():
                 await interaction.response.send_message(
                     f"❌ Error submitting response: {str(e)}", 
                     ephemeral=True
                 )
             else:
-                # Already responded, send followup instead
                 try:
                     await interaction.followup.send(
                         f"❌ Error submitting response: {str(e)}",
                         ephemeral=True
                     )
-                except:
+                except Exception:
                     pass
 
 
@@ -219,8 +186,6 @@ class CampaignMessageView(View):
         super().__init__(timeout=None)
         
         self.campaign_id = campaign_id
-        
-        # Add buttons dynamically
         for btn_config in buttons_config[:25]:  # Max 25 buttons
             style_map = {
                 'primary': discord.ButtonStyle.primary,
@@ -236,8 +201,6 @@ class CampaignMessageView(View):
                 emoji=btn_config.get('button_emoji'),
                 custom_id=f"campaign_btn_{btn_config['id']}"
             )
-            
-            # Store form config in button for callback
             button.form_config = btn_config
             button.callback = self.create_button_callback(btn_config)
             
@@ -247,11 +210,8 @@ class CampaignMessageView(View):
         """Create a callback for a button"""
         async def button_callback(interaction: discord.Interaction):
             logger.info(f"Button '{form_config['button_label']}' pressed by user {interaction.user.id} for campaign {self.campaign_id}")
-            
-            # Check for duplicate submission (per campaign) - BEFORE doing anything else
             try:
                 existing = await db.campaigns.get_responses(
-                    # form_id=form_config['id'],
                     user_id=interaction.user.id,
                     campaign_id=self.campaign_id
                 )
@@ -267,11 +227,9 @@ class CampaignMessageView(View):
                 pass
 
             if form_config.get('has_form'):
-                # Show modal
                 modal = CampaignFormModal(form_config, self.campaign_id)
                 await interaction.response.send_modal(modal)
             else:
-                # Save response
                 try:
                     await db.campaigns.save_response(
                         form_id=form_config['id'],
@@ -281,48 +239,35 @@ class CampaignMessageView(View):
                         response_data={'action': 'clicked', 'label': form_config['button_label']}
                     )
                     logger.info(f"Button click saved for user {interaction.user.id} in campaign {self.campaign_id}")
-
-                    # Just acknowledge the button press
                     await interaction.response.send_message(
                         f"✅ {form_config['button_label']} registered!",
                         ephemeral=True
                     )
-
-                    # Send notification to channel if configured
                     response_channel_id = form_config.get('response_channel_id')
-                    # Send notification to channel if configured
                     response_channel_id = form_config.get('response_channel_id')
                     if response_channel_id:
                         channel = None
                         try:
-                            # 1. Try to get guild from interaction
                             guild = interaction.guild
-                            
-                            # 2. If no guild in interaction (e.g. DM), try to find it from campaign data
                             if not guild:
                                 try:
-                                    # We need to fetch the campaign to know which guild it belongs to
                                     campaign = await db.campaigns.get_campaign(self.campaign_id)
                                     if campaign and campaign.get('guild_id'):
                                         guild = interaction.client.get_guild(campaign['guild_id'])
                                         if not guild:
                                             try:
                                                 guild = await interaction.client.fetch_guild(campaign['guild_id'])
-                                            except:
+                                            except Exception:
                                                 pass
                                 except Exception as e:
                                     logger.error(f"Error fetching campaign guild for button response: {e}")
-
-                            # 3. Now try to find the channel using the best available method
                             if guild:
                                 channel = guild.get_channel(response_channel_id)
                                 if not channel:
                                     try:
                                         channel = await guild.fetch_channel(response_channel_id)
-                                    except:
+                                    except Exception:
                                         pass
-                            
-                            # 4. Fallback to global client fetch
                             if not channel:
                                 channel = interaction.client.get_channel(response_channel_id)
                                 if not channel:
@@ -333,9 +278,7 @@ class CampaignMessageView(View):
                             
                             if channel:
                                 logger.info(f"Sending button notification to channel {channel.id}")
-                                
-                                # Plain text notification
-                                msg_content = f"👉 **New Button Click**\n"
+                                msg_content = "👉 **New Button Click**\n"
                                 msg_content += f"**User:** {interaction.user.name} (`{interaction.user.id}`)\n"
                                 msg_content += f"**Campaign ID:** {self.campaign_id}\n"
                                 msg_content += f"**Button:** {form_config['button_label']}\n"
@@ -347,10 +290,7 @@ class CampaignMessageView(View):
                                     logger.error(f"Failed to send notification: {e}")
                             else:
                                 logger.error(f"Could not find response channel {response_channel_id}")
-                                
-                                # Fallback: DM the campaign creator
                                 try:
-                                    # 1. Fetch campaign to get creator ID
                                     campaign = await db.campaigns.get_campaign(self.campaign_id)
                                     if campaign and campaign.get('created_by'):
                                         creator_id = campaign['created_by']
@@ -358,16 +298,14 @@ class CampaignMessageView(View):
                                         if not creator:
                                             try:
                                                 creator = await interaction.client.fetch_user(creator_id)
-                                            except:
+                                            except Exception:
                                                 pass
                                         
                                         if creator:
                                             logger.info(f"Sending button fallback notification to campaign creator {creator.id}")
-                                            
-                                            # Plain text notification with warning
                                             msg_content = f"⚠️ **WARNING: Could not find response channel <#{response_channel_id}>**\n"
-                                            msg_content += f"Sending response here as fallback.\n\n"
-                                            msg_content += f"👉 **New Button Click**\n"
+                                            msg_content += "Sending response here as fallback.\n\n"
+                                            msg_content += "👉 **New Button Click**\n"
                                             msg_content += f"**User:** {interaction.user.name} (`{interaction.user.id}`)\n"
                                             msg_content += f"**Campaign ID:** {self.campaign_id}\n"
                                             msg_content += f"**Button:** {form_config['button_label']}\n"
@@ -528,3 +466,9 @@ class AddButtonModal(Modal):
                 f"❌ Error adding button: {str(e)}",
                 ephemeral=True
             )
+
+
+def setup(bot):
+    """Setup function for the extension (no-op as this file only contains views)"""
+    # This extension only contains views used by other cogs
+    pass

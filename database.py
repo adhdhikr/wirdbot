@@ -1,17 +1,16 @@
 
-from db.connection import DatabaseConnection
-from db.repositories.guild import GuildRepository
-from db.repositories.schedule import ScheduleRepository
-from db.repositories.user import UserRepository
-from db.repositories.completion import CompletionRepository
-from db.repositories.session import SessionRepository
-from db.repositories.cache import CacheRepository
-from db.repositories.campaign import CampaignRepository
-from db.repositories.file_storage import FileStorageRepository
-from db.repositories.memory import MemoryRepository
 import os
 
-
+from db.connection import DatabaseConnection
+from db.repositories.cache import CacheRepository
+from db.repositories.campaign import CampaignRepository
+from db.repositories.completion import CompletionRepository
+from db.repositories.file_storage import FileStorageRepository
+from db.repositories.guild import GuildRepository
+from db.repositories.memory import MemoryRepository
+from db.repositories.schedule import ScheduleRepository
+from db.repositories.session import SessionRepository
+from db.repositories.user import UserRepository
 
 
 class Database:
@@ -26,7 +25,6 @@ class Database:
     def __init__(self, db_path: str = "data/wird.db"):
         if self.__class__._initialized:
             return
-        # Ensure the data directory exists
         data_dir = os.path.dirname(db_path)
         if data_dir and not os.path.exists(data_dir):
             os.makedirs(data_dir, exist_ok=True)
@@ -156,7 +154,6 @@ class Database:
 
     async def reset_guild_data(self, guild_id: int):
         """Reset all data for a guild (admin command)"""
-        # Delete in reverse order of dependencies
         await self.completions.clear_all(guild_id)
         await self.sessions.clear_all(guild_id)
         await self.users.clear_all(guild_id)
@@ -177,8 +174,6 @@ class Database:
 
     async def set_user_streak_emoji(self, user_id: int, guild_id: int, emoji: str):
         await self.users.set_streak_emoji(user_id, guild_id, emoji)
-
-    # Cache methods
     async def get_translation_cache(self, page_number: int, language: str):
         return await self.cache.get_translation_cache(page_number, language)
 
@@ -193,8 +188,6 @@ class Database:
 
     async def get_cache_stats(self):
         return await self.cache.get_cache_stats()
-
-    # Memory methods
     async def add_user_memory(self, user_id: int, guild_id: int, content: str):
         return await self.memories.add_memory(user_id, guild_id, content)
 
@@ -206,7 +199,4 @@ class Database:
 
     async def delete_user_memory(self, memory_id: int, user_id: int):
         await self.memories.delete_memory(memory_id, user_id)
-
-
-# Global singleton instance
 db = Database()

@@ -1,10 +1,10 @@
 import nextcord as discord
+
+from config import MAX_PAGES_PER_DAY, MIN_PAGES_PER_DAY
 from database import db
-from config import MIN_PAGES_PER_DAY, MAX_PAGES_PER_DAY
 
 
 async def handle_setup(interaction: discord.Interaction, children):
-    # ...existing code...
     
     try:
         mosque_id = children[0].value

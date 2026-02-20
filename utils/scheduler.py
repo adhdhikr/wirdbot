@@ -1,7 +1,8 @@
-import aiohttp
+import logging
 from datetime import datetime
 from typing import Optional
-import logging
+
+import aiohttp
 
 from config import PRAYER_API_BASE_URL
 
@@ -24,7 +25,7 @@ async def get_prayer_times(mosque_id: str) -> Optional[dict]:
 
 
 async def handle_schedule_time(interaction, time_value: str):
-    from database import db    
+    from database import db
     try:
         hours, minutes = map(int, time_value.split(":"))
         

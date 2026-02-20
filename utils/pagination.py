@@ -1,5 +1,6 @@
 from typing import List
 
+
 def paginate_text(text: str, max_length: int = 4000) -> List[str]:
     """Split text into pages that fit within Discord embed description limits."""
     if len(text) <= max_length:
@@ -12,22 +13,16 @@ def paginate_text(text: str, max_length: int = 4000) -> List[str]:
 
     for line in lines:
         line_length = len(line) + 1  # +1 for newline
-
-        # If the line itself is too long, split it into chunks
         if line_length > max_length:
-            # If there's content in current_page, add it first
             if current_page:
                 page = current_page.rstrip()
                 if page:
                     pages.append(page)
                 current_page = ""
                 current_length = 0
-            
-            # Split the long line into chunks
             chunks = []
             remaining = line
             while len(remaining) > max_length:
-                # Find a good break point (space or punctuation)
                 chunk = remaining[:max_length]
                 last_space = chunk.rfind(' ')
                 if last_space > max_length // 2:  # Only break at space if it's not too early
@@ -37,11 +32,8 @@ def paginate_text(text: str, max_length: int = 4000) -> List[str]:
             
             if remaining:
                 chunks.append(remaining)
-            
-            # Add chunks as separate pages
             for chunk in chunks[:-1]:  # All but last chunk
                 pages.append(chunk)
-            # Start current_page with the last chunk
             current_page = chunks[-1] + '\n'
             current_length = len(current_page)
             continue

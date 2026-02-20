@@ -1,8 +1,10 @@
-import aiohttp
 import logging
-from typing import List, Dict, Any, Optional
-from utils.translation import fetch_page_translations
+from typing import Any, Dict, List, Optional
+
+import aiohttp
+
 from database import db
+from utils.translation import fetch_page_translations
 
 logger = logging.getLogger(__name__)
 
@@ -17,7 +19,6 @@ TAFSIR_EDITIONS = {
 
 async def get_ayahs_for_page(page_number: int) -> List[Dict[str, Any]]:
     """Get all ayahs in a page using the translation API."""
-    # Use English edition to get ayah structure
     translations = await fetch_page_translations(page_number, 'eng')
     if not translations:
         return []
@@ -42,14 +43,10 @@ async def fetch_tafsir_for_ayah(edition: str, surah: int, ayah: int) -> Optional
 
 async def fetch_page_tafsir(page_number: int, edition: str) -> Optional[List[Dict[str, Any]]]:
     """Fetch tafsir for all ayahs in a page with caching."""
-    
-    # Try to get from cache first
     cached_data = await db.get_tafsir_cache(page_number, edition)
     if cached_data:
         logger.debug(f"Tafsir cache hit for page {page_number}, edition {edition}")
         return cached_data
-    
-    # Cache miss - fetch from API
     logger.debug(f"Tafsir cache miss for page {page_number}, edition {edition} - fetching from API")
     ayahs = await get_ayahs_for_page(page_number)
     if not ayahs:
@@ -67,8 +64,6 @@ async def fetch_page_tafsir(page_number: int, edition: str) -> Optional[List[Dic
                     'ayah': ayah_num,
                     'text': tafsir_text
                 })
-
-    # Cache the result
     if tafsir_data:
         await db.set_tafsir_cache(page_number, edition, tafsir_data)
         logger.debug(f"Cached tafsir for page {page_number}, edition {edition}")
