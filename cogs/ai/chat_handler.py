@@ -79,6 +79,11 @@ _TOOL_LABELS = {
     'convert_file':         ('🛠️', 'Converting file', 'Converted file'),
     'check_cloudconvert_status': ('🛠️', 'Checking conversion status', 'Checked conversion status'),
     # Memory
+    'remember_info':        ('🛠️', 'Saving to memory', 'Saved to memory'),
+    'get_my_memories':      ('🛠️', 'Recalling memories', 'Recalled memories'),
+    'forget_memory':        ('🛠️', 'Deleting memory', 'Deleted memory'),
+    # Sandbox
+    'run_python_script':    ('🛠️', 'Running Python script', 'Ran Python script'),
 }
 
 
@@ -89,8 +94,9 @@ def _format_tool_label(fname: str, fargs: dict, done: bool = False) -> str:
     """
     entry = _TOOL_LABELS.get(fname)
     if not entry:
-        # Fallback: plain function name as code span
-        return f"Called `{fname}`" if done else f"Calling `{fname}`"
+        # Fallback: use a cleaned-up version of the function name
+        clean = fname.replace('_', ' ').title()
+        return clean if done else f"Running {clean}"
 
     emoji, in_progress, done_tpl = entry
     template = done_tpl if done else in_progress
@@ -242,6 +248,7 @@ class ChatHandler:
                          try:
                             content = sent_message.content
                             content = content.replace("-# 🧠 Thinking (Pro Model)...", "").strip()
+                            content = re.sub(r"-# <a:loading:\d+> Generating\.\.\.", "", content).strip()
 
                             if len(content) + len(status_line) < 2000:
                                 sent_message = await sent_message.edit(content=(content + status_line).strip())
@@ -315,7 +322,7 @@ class ChatHandler:
                                     'code': fargs.get('code', ''),
                                     'output': str(tool_result)
                                 })
-                                arg_str += f" [#{exec_index}]"
+                                in_progress_label += f" [#{exec_index}]"
                                 
                             if fname == 'share_file' and str(tool_result).startswith('__SHARE_FILE__:'):
                                 parts_share = str(tool_result).split(':')
