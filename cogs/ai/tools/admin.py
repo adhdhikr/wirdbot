@@ -10,11 +10,38 @@ from database import db
 
 logger = logging.getLogger(__name__)
 
+# SQL keywords that are never allowed anywhere in the query (even in comments)
+_SQL_BLOCKED_KEYWORDS = re.compile(
+    r'\b(INSERT|UPDATE|DELETE|DROP|CREATE|ALTER|ATTACH|DETACH|PRAGMA|EXEC|EXECUTE|REPLACE|TRUNCATE|GRANT|REVOKE|VACUUM|REINDEX|ANALYZE)\b',
+    re.IGNORECASE
+)
+# UNION can be used to inject extra result sets from other tables
+_SQL_UNION_PATTERN = re.compile(r'\bUNION\b', re.IGNORECASE)
+# Strip SQL comments before any validation so tricks like SELECT/**/name can't bypass checks
+_SQL_BLOCK_COMMENT = re.compile(r'/\*.*?\*/', re.DOTALL)
+_SQL_LINE_COMMENT = re.compile(r'--[^\r\n]*')
+
+
+def _strip_sql_comments(query: str) -> str:
+    """Remove block and line comments from a SQL query."""
+    query = _SQL_BLOCK_COMMENT.sub(' ', query)
+    query = _SQL_LINE_COMMENT.sub(' ', query)
+    return query.strip()
+
 
 async def execute_sql(query: str, **kwargs):
     """
-    Execute a read-only SQL query (SELECT) immediately.
+    Execute a read-only SQL query (SELECT only).
     Use this to inspect data without waiting for approval.
+    
+    Restrictions:
+    - Only SELECT statements are permitted.
+    - No INSERT, UPDATE, DELETE, DROP, or other modifying keywords.
+    - No UNION (prevents data-exfil across tables).
+    - No SQL comments (prevents keyword-bypass tricks).
+    - No semicolons (prevents statement chaining).
+    - Admins (non-owners) must include their guild_id in the WHERE clause.
+    - Admins cannot query sqlite_master (schema introspection).
     
     Args:
         query: The SQL SELECT statement.
@@ -26,18 +53,47 @@ async def execute_sql(query: str, **kwargs):
     if not (is_owner or is_admin):
         return "❌ Error: Permission Denied. You must be an Admin or Bot Owner to use this tool."
 
-    query = query.strip()
-    if not query.upper().startswith("SELECT"):
+    raw_query = query.strip()
+
+    # Reject raw comments before stripping — presence of comments is itself suspicious
+    if '/*' in raw_query or '*/' in raw_query or '--' in raw_query:
+        return "❌ Error: SQL comments are not allowed."
+
+    # Strip comments anyway as a second layer, then validate the clean form
+    clean_query = _strip_sql_comments(raw_query)
+
+    # Must begin with SELECT (after comment removal)
+    if not clean_query.upper().startswith('SELECT'):
         return "❌ Error: Only SELECT queries are allowed."
-    
-    if ";" in query:
+
+    # No semicolons — prevents statement chaining
+    if ';' in clean_query:
         return "❌ Error: Multiple statements (;) are not allowed."
+
+    # Block dangerous keywords
+    blocked_match = _SQL_BLOCKED_KEYWORDS.search(clean_query)
+    if blocked_match:
+        return f"❌ Error: Keyword `{blocked_match.group(0).upper()}` is not allowed in read-only mode."
+
+    # Block UNION to prevent cross-table data exfiltration
+    if _SQL_UNION_PATTERN.search(clean_query):
+        return "❌ Error: UNION is not allowed."
+
+    # Admins cannot inspect sqlite_master (prevents schema leakage)
+    if not is_owner and 'sqlite_master' in clean_query.lower():
+        return "❌ Error: Querying `sqlite_master` requires Bot Owner permissions."
+
+    # Admins must scope their query to their own guild
     if not is_owner and guild_id:
-        if str(guild_id) not in query:
-            return f"❌ Error: Admin Safety Check Failed. Include `WHERE guild_id = {guild_id}` in your query."
-    
+        if str(guild_id) not in clean_query:
+            return (
+                f"❌ Error: Admin Safety Check Failed. "
+                f"Your query must reference your guild_id (`{guild_id}`) "
+                f"in a WHERE clause to prevent cross-guild data access."
+            )
+
     try:
-        rows = await db.connection.execute_many(query)
+        rows = await db.connection.execute_many(clean_query)
         if not rows:
             return "No results found."
         if len(rows) > 20:
@@ -56,6 +112,7 @@ async def execute_sql(query: str, **kwargs):
             return "Query executed. No rows returned."
             
     except Exception as e:
+        logger.error(f"execute_sql error: {e}")
         return f"SQL Error: {e}"
 
 

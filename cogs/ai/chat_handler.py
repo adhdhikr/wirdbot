@@ -12,48 +12,147 @@ from .views import CodeApprovalView, ContinueExecutionView, SandboxExecutionView
 
 logger = logging.getLogger(__name__)
 
+# ---------------------------------------------------------------------------
+# Per-tool human-readable label builder
+# Each entry: (emoji, in_progress_template, done_template)
+#   Templates support {arg} placeholders drawn from fargs.
+#   '~q30' means: the 'query' arg, truncated to 30 chars.
+#   '~u40' means: the 'url'   arg, truncated to 40 chars.
+#   '~f'   means: the 'filename' arg.
+# ---------------------------------------------------------------------------
+_TOOL_LABELS = {
+    # Web
+    'search_web':           ('🛠️', 'Searching web for **{query}**', 'Searched web for [{query}](<https://duckduckgo.com/?q={query_encoded}>)'),
+    'read_url':             ('🛠️', 'Reading `{url}`', 'Read [{url_short}]({url})'),
+    'search_in_url':        ('🛠️', 'Searching `{url}` for **{search_term}**', 'Searched [{url_short}]({url}) for **{search_term}**'),
+    'extract_links':        ('🛠️', 'Extracting links from `{url}`', 'Extracted links from [{url_short}]({url})'),
+    'get_page_headings':    ('🛠️', 'Getting headings from `{url}`', 'Got headings from [{url_short}]({url})'),
+    # Quran
+    'lookup_quran_page':    ('🛠️', 'Looking up Quran page {page}', 'Looked up Quran page {page}'),
+    'lookup_tafsir':        ('🛠️', 'Looking up tafsir for {ayah}', 'Looked up tafsir for {ayah}'),
+    'show_quran_page':      ('🛠️', 'Fetching Quran page image', 'Fetched Quran page image'),
+    'get_ayah_safe':        ('🛠️', 'Getting ayah {surah}:{ayah}', 'Got ayah {surah}:{ayah}'),
+    'get_page_safe':        ('🛠️', 'Getting Quran page {page}', 'Got Quran page {page}'),
+    'search_quran_safe':    ('🛠️', 'Searching Quran for **{query}**', 'Searched Quran for **{query}**'),
+    # Admin / DB
+    'execute_sql':          ('🛠️', 'Searching database', 'Searched database'),
+    'get_db_schema':        ('🛠️', 'Fetching database schema', 'Fetched database schema'),
+    'search_codebase':      ('🛠️', 'Searching codebase for **{query}**', 'Searched codebase for **{query}**'),
+    'read_file':            ('🛠️', 'Reading `{filename}`', 'Read `{filename}`'),
+    'update_server_config': ('🛠️', 'Updating `{setting}` → `{value}`', 'Updated `{setting}` → `{value}`'),
+    # User
+    'get_my_stats':         ('🛠️', 'Fetching your stats', 'Fetched your stats'),
+    'set_my_streak_emoji':  ('🛠️', 'Setting streak emoji to {emoji}', 'Set streak emoji to {emoji}'),
+    # Discord info
+    'get_server_info':      ('🛠️', 'Fetching server info', 'Fetched server info'),
+    'get_member_info':      ('🛠️', 'Fetching member info', 'Fetched member info'),
+    'get_channel_info':     ('🛠️', 'Fetching channel info', 'Fetched channel info'),
+    'get_role_info':        ('🛠️', 'Fetching role info', 'Fetched role info'),
+    'get_channels':         ('🛠️', 'Listing channels', 'Listed channels'),
+    'check_permissions':    ('🛠️', 'Checking permissions', 'Checked permissions'),
+    # Discord actions
+    'execute_discord_code': ('🛠️', 'Preparing code execution', 'Code execution prepared'),
+    # User space / files
+    'save_to_space':        ('🛠️', 'Saving `{filename}` to your space', 'Saved `{filename}` to your space'),
+    'read_from_space':      ('🛠️', 'Reading `{filename}` from your space', 'Read `{filename}` from your space'),
+    'list_space':           ('🛠️', 'Listing your space', 'Listed your space'),
+    'get_space_info':       ('🛠️', 'Getting space info', 'Got space info'),
+    'delete_from_space':    ('🛠️', 'Deleting `{filename}` from your space', 'Deleted `{filename}` from your space'),
+    'zip_files':            ('🛠️', 'Zipping files', 'Zipped files'),
+    'unzip_file':           ('🛠️', 'Unzipping `{filename}`', 'Unzipped `{filename}`'),
+    'share_file':           ('🛠️', 'Sharing `{filename}`', 'Shared `{filename}`'),
+    'upload_attachment_to_space': ('🛠️', 'Uploading attachment to your space', 'Uploaded attachment to your space'),
+    'save_message_attachments':   ('🛠️', 'Saving message attachments', 'Saved message attachments'),
+    'extract_pdf_images':   ('🛠️', 'Extracting PDF images from `{filename}`', 'Extracted PDF images from `{filename}`'),
+    'analyze_image':        ('🛠️', 'Analyzing image', 'Analyzed image'),
+    # Vision
+    # Bot management
+    'force_bot_status':     ('🛠️', 'Setting bot status to **{status}**', 'Set bot status to **{status}**'),
+    'add_bot_status_option':('🛠️', 'Adding status option', 'Added status option'),
+    # Campaign
+    'create_campaign_tool': ('🛠️', 'Creating campaign', 'Created campaign'),
+    'send_campaign':        ('🛠️', 'Sending campaign', 'Sent campaign'),
+    'list_campaigns':       ('🛠️', 'Listing campaigns', 'Listed campaigns'),
+    'get_campaign_responses':('🛠️', 'Fetching campaign responses', 'Fetched campaign responses'),
+    'add_campaign_button':  ('🛠️', 'Adding campaign button', 'Added campaign button'),
+    # CloudConvert
+    'convert_file':         ('🛠️', 'Converting file', 'Converted file'),
+    'check_cloudconvert_status': ('🛠️', 'Checking conversion status', 'Checked conversion status'),
+    # Memory
+}
+
+
+def _format_tool_label(fname: str, fargs: dict, done: bool = False) -> str:
+    """
+    Build a human-readable label for a tool call.
+    Returns just the label text (no emoji prefix, no leading newline).
+    """
+    entry = _TOOL_LABELS.get(fname)
+    if not entry:
+        # Fallback: plain function name as code span
+        return f"Called `{fname}`" if done else f"Calling `{fname}`"
+
+    emoji, in_progress, done_tpl = entry
+    template = done_tpl if done else in_progress
+
+    # Build substitution dict from fargs with smart truncation helpers
+    url    = str(fargs.get('url', ''))
+    query  = str(fargs.get('query', ''))
+    try:
+        import urllib.parse
+        query_encoded = urllib.parse.quote_plus(query[:60])
+    except Exception:
+        query_encoded = query[:60]
+
+    subs = dict(fargs)  # start with raw args
+    subs['url']            = url
+    subs['url_short']      = url[:40] + ('...' if len(url) > 40 else '')
+    subs['query']          = query[:40] + ('...' if len(query) > 40 else '')
+    subs['query_encoded']  = query_encoded
+    subs.setdefault('filename',    '')
+    subs.setdefault('search_term', '')
+    subs.setdefault('page',        '')
+    subs.setdefault('ayah',        '')
+    subs.setdefault('surah',       '')
+    subs.setdefault('setting',     '')
+    subs.setdefault('value',       '')
+    subs.setdefault('status',      '')
+    subs.setdefault('emoji',       '')
+
+    try:
+        return template.format_map(subs)
+    except Exception:
+        return f"Called `{fname}`" if done else f"Calling `{fname}`"
+
 def condense_tool_calls(content: str) -> str:
-    """Condense multiple tool call lines into a summary."""
+    """
+    Collapse consecutive runs of the *exact same* completed tool line.
+    e.g. three identical '✅ Searched web for X' lines in a row become
+    '✅ Searched web for X ×3'.  Different tools or runs broken by text
+    are left untouched.
+    """
     lines = content.split('\n')
-    tool_lines = []
-    other_lines = []
-    
-    for line in lines:
-        if line.strip().startswith('-#') and ('✅ Called' in line or '❌ Error' in line):
-            tool_lines.append(line)
-        else:
-            other_lines.append(line)
-    
-    if len(tool_lines) <= 2:
-        return content
-        
-    from collections import Counter
-    tool_counts = Counter()
-    errors = []
-    
-    for line in tool_lines:
-        match = re.search(r'`([^`]+)`', line)
-        if match:
-            tool_name = match.group(1)
-            if '❌ Error' in line:
-                errors.append(tool_name)
+    output = []
+    i = 0
+    while i < len(lines):
+        line = lines[i]
+        stripped = line.strip()
+        # Only try to collapse completed (✅ / ❌) tool-status lines
+        is_tool_line = stripped.startswith('-#') and ('✅ ' in stripped or '❌ Error:' in stripped)
+        if is_tool_line:
+            # Count how many identical lines follow
+            count = 1
+            while i + count < len(lines) and lines[i + count].strip() == stripped:
+                count += 1
+            if count > 1:
+                output.append(line.rstrip() + f' ×{count}')
             else:
-                tool_counts[tool_name] += 1
-                
-    parts = []
-    for tool, count in tool_counts.items():
-        if count > 1:
-            parts.append(f"`{tool}` ×{count}")
+                output.append(line)
+            i += count
         else:
-            parts.append(f"`{tool}`")
-    for err_tool in errors:
-        parts.append(f"❌`{err_tool}`")
-    
-    if parts:
-        condensed = "-# 🛠️ " + ", ".join(parts)
-        return '\n'.join(other_lines + [condensed])
-    
-    return '\n'.join(other_lines)
+            output.append(line)
+            i += 1
+    return '\n'.join(output)
 
 def strip_status(content: str) -> str:
     lines = content.split('\n')
@@ -135,16 +234,9 @@ class ChatHandler:
                         except Exception:
                             pass
 
-                    arg_str = ""
-                    if 'query' in fargs:
-                        arg_str = f" \"{fargs['query'][:30]}{'...' if len(fargs['query'])>30 else ''}\""
-                    elif 'url' in fargs:
-                        arg_str = f" ({fargs['url'][:40]}{'...' if len(fargs['url'])>40 else ''})"
-                    elif 'code' in fargs:
-                        arg_str = " (code)"
-                    
-                    logger.info(f"AI Calling Tool: {fname}{arg_str}")
-                    status_line = f"\n-# 🛠️ Calling `{fname}`{arg_str}..."
+                    logger.info(f"AI Calling Tool: {fname} args={list(fargs.keys())}")
+                    in_progress_label = _format_tool_label(fname, fargs, done=False)
+                    status_line = f"\n-# 🛠️ {in_progress_label}..."
                     
                     if sent_message:
                          try:
@@ -254,14 +346,18 @@ class ChatHandler:
                         if sent_message:
                              try:
                                 current_content = sent_message.content
-                                pattern = r"(?:\n)?-#\s*🛠️\s*Calling\s*`" + re.escape(fname) + r"`.*?\.\.\."
+                                # Match the in-progress line we wrote earlier
+                                in_progress_escaped = re.escape(_format_tool_label(fname, fargs, done=False))
+                                pattern = r"(?:\n)?-#\s*🛠️\s*" + in_progress_escaped + r"\.\.\."
+                                done_label = _format_tool_label(fname, fargs, done=True)
                                 if re.search(pattern, current_content):
-                                    new_marker = f"\n-# {'❌ Error' if error_occurred else '✅ Called'} `{fname}`{arg_str}"
+                                    prefix = '❌ Error: ' if error_occurred else '✅ '
+                                    new_marker = f"\n-# {prefix}{done_label}"
                                     new_content = re.sub(pattern, new_marker, current_content, count=1)
                                     match = re.search(pattern, current_content)
                                     if match.start() == 0:
                                         new_content = new_content.lstrip()
-                                        
+
                                     view = SandboxExecutionView(execution_logs) if execution_logs else None
                                     sent_message = await sent_message.edit(content=new_content, view=view)
                                 else:
