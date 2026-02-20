@@ -36,7 +36,7 @@ async def build_chat_history(bot: discord.Client, message: discord.Message, cont
     async for msg in message.channel.history(limit=search_limit, before=message):
         if message.channel.id in context_pruning_markers:
             if msg.id <= context_pruning_markers[message.channel.id]:
-                continue 
+                break
         if msg.id in [m.id for m in reply_chain] or msg.id == message.id:
             continue
         msg_len = len(msg.content)

@@ -175,8 +175,8 @@ class AICog(commands.Cog):
                 allowed_tool_names = {t.__name__ for t in allowed_tools}
                 await self.chat_handler.process_chat_turn(chat, user_msg, message, sent_message=sent_message, allowed_tool_names=allowed_tool_names)
                 
-                # Persist history
-                self.chat_histories[message.channel.id] = getattr(chat, '_curated_history', getattr(chat, 'history', []))
+                if message.channel.id not in self.context_pruning_markers:
+                    self.chat_histories[message.channel.id] = getattr(chat, '_curated_history', getattr(chat, 'history', []))
             
             except asyncio.CancelledError:
                  interrupter = self.interrupt_signals.pop(message.channel.id, "User")
