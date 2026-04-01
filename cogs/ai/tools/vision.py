@@ -51,7 +51,7 @@ async def analyze_image(image_input: str, question: str = "Describe this image i
 
         if not image_data:
             return "❌ Error: Could not load image data."
-        model_name = kwargs.get('model_name', 'gemini-2.0-flash')
+        model_name = kwargs.get('model_name', 'gemini-2.5-flash')
         client = genai.Client(api_key=GEMINI_API_KEY)
         prompt = question
         if not prompt:
