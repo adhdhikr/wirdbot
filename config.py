@@ -19,7 +19,7 @@ AI_MODEL = os.getenv("AI_MODEL", "deepseek/deepseek-v4-pro")
 # Reasoning effort: "none" disables thinking, otherwise low/medium/high.
 AI_REASONING = os.getenv("AI_REASONING", "low")
 # Images always go to a vision-capable model, whatever the chat model is.
-AI_VISION_MODEL = os.getenv("AI_VISION_MODEL", "qwen/qwen3.7-flash")
+AI_VISION_MODEL = os.getenv("AI_VISION_MODEL", "qwen/qwen3-vl-8b-instruct")
 
 # Optional two-tier routing: a cheap classifier picks a small or big model per
 # message. Off by default — AI_MODEL answers everything.
