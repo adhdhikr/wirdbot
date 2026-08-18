@@ -181,6 +181,9 @@ class SandboxExecutionView(discord.ui.View):
 
         if self.reasoning_logs:
             think_btn = discord.ui.Button(
+                # Bare brain for a single thought; the count only earns its
+                # space once there is more than one to page through.
+                label=f"({len(self.reasoning_logs)})" if len(self.reasoning_logs) > 1 else None,
                 style=discord.ButtonStyle.secondary,
                 emoji="🧠",
                 custom_id="ai_reasoning"
