@@ -1,7 +1,12 @@
 import logging
 import nextcord as discord
 
-from config import AI_BACKLOG_CHARS_DM, AI_BACKLOG_CHARS_GUILD
+from config import (
+    AI_BACKLOG_CHARS_DM,
+    AI_BACKLOG_CHARS_GUILD,
+    AI_BACKLOG_MESSAGES_DM,
+    AI_BACKLOG_MESSAGES_GUILD,
+)
 
 from .llm import types
 
@@ -34,7 +39,7 @@ async def build_chat_history(bot: discord.Client, message: discord.Message, cont
     
     current_chars = 0
     recent_msgs = []
-    search_limit = 300 if is_dm else 100 
+    search_limit = AI_BACKLOG_MESSAGES_DM if is_dm else AI_BACKLOG_MESSAGES_GUILD
     
     async for msg in message.channel.history(limit=search_limit, before=message):
         if message.channel.id in context_pruning_markers:

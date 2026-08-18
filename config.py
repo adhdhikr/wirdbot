@@ -44,6 +44,10 @@ AI_MAX_IMAGES = int(os.getenv("AI_MAX_IMAGES", "4"))
 # How much channel backlog is pulled in when a conversation starts (characters).
 AI_BACKLOG_CHARS_DM = int(os.getenv("AI_BACKLOG_CHARS_DM", "120000"))
 AI_BACKLOG_CHARS_GUILD = int(os.getenv("AI_BACKLOG_CHARS_GUILD", "60000"))
+# How many messages back that scan reaches. Each 100 is one Discord API call,
+# so this trades startup latency for depth; the char budget above still applies.
+AI_BACKLOG_MESSAGES_DM = int(os.getenv("AI_BACKLOG_MESSAGES_DM", "600"))
+AI_BACKLOG_MESSAGES_GUILD = int(os.getenv("AI_BACKLOG_MESSAGES_GUILD", "300"))
 CLOUDCONVERT_API_KEY = os.getenv("CLOUDCONVERT_API_KEY")
 API_BASE_URL = os.getenv("API_BASE_URL", "http://localhost:5000")
 
