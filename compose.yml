@@ -1,0 +1,67 @@
+name: wird
+
+services:
+  api:
+    image: ghcr.io/adhdhikr/wirdapi:main
+    restart: unless-stopped
+    ports:
+      # Drop this block to keep the API private to the compose network.
+      - "5000:5000"
+    networks: [wirdnet]
+    environment:
+      FLASK_ENV: production
+      FLASK_DEBUG: 0
+      PORT: 5000
+    logging: &logging
+      driver: json-file
+      options: {max-size: "10m", max-file: "3"}
+
+  bot:
+    image: ghcr.io/adhdhikr/wirdbot:main
+    restart: unless-stopped
+    depends_on: [api]
+    networks: [wirdnet]
+    environment:
+      # Secrets come from a .env file next to this compose file, so they stay
+      # out of the repo: DISCORD_TOKEN=..., OPENROUTER_API_KEY=...
+      DISCORD_TOKEN: ${DISCORD_TOKEN:?set DISCORD_TOKEN in .env}
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:?set OPENROUTER_API_KEY in .env}
+      # Serves the mushaf page images. Prayer times need no service —
+      # utils/prayertimes.py scrapes mawaqit in-process.
+      API_BASE_URL: http://api:5000
+      DEBUG_MODE: "false"
+      # Only read when DEBUG_MODE is true, and must be numeric ids:
+      # DEBUG_GUILD_IDS: "123456789012345678,987654321098765432"
+
+      # --- AI (defaults live in config.py; uncomment to override) ----------
+      # The model answers everything, images included.
+      AI_MODEL: ${AI_MODEL:-qwen/qwen3-vl-8b-instruct}
+      # none | low | medium | high
+      AI_REASONING: ${AI_REASONING:-low}
+      AI_MAX_CONTEXT_TOKENS: ${AI_MAX_CONTEXT_TOKENS:-200000}
+      # AI_MAX_TOOL_RESULT_CHARS: "12000"
+      # AI_MAX_ATTACHMENT_CHARS: "20000"
+      # AI_MAX_IMAGES: "4"
+      # AI_BACKLOG_CHARS_GUILD: "60000"
+      # AI_BACKLOG_CHARS_DM: "120000"
+      # AI_BACKLOG_MESSAGES_GUILD: "300"
+      # AI_BACKLOG_MESSAGES_DM: "600"
+      # Two-tier routing instead of one model:
+      # AI_ROUTING_ENABLED: "true"
+      # AI_COMPLEX_MODEL: "deepseek/deepseek-v4-pro"
+      # AI_SIMPLE_MODEL: "qwen/qwen3.7-flash"
+
+      # Optional integrations:
+      # CLOUDCONVERT_API_KEY: ${CLOUDCONVERT_API_KEY}
+      # TOOL_LOG_CHANNEL_ID: "123456789012345678"
+      # MAX_TOOL_CALLS: "15"
+    volumes:
+      # The sqlite db (data/wird.db) and user file spaces (data/user_files).
+      - wird-bot-data:/app/data
+    logging: *logging
+
+networks:
+  wirdnet: {driver: bridge}
+
+volumes:
+  wird-bot-data:
