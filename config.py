@@ -16,8 +16,10 @@ OPENROUTER_APP_NAME = os.getenv("OPENROUTER_APP_NAME", "WirdBot")
 # Models (OpenRouter slugs). Override in .env without touching code.
 # One vision-capable model handles every chat, images included.
 AI_MODEL = os.getenv("AI_MODEL", "xiaomi/mimo-v2.5")
-# Reasoning effort: "none" disables thinking, otherwise low/medium/high.
-AI_REASONING = os.getenv("AI_REASONING", "low")
+# Thinking: "on" lets the model think as long as it wants, "none" turns it
+# off, and low/medium/high additionally ask for a budget (ignored by models
+# whose thinking is a plain on/off switch).
+AI_REASONING = os.getenv("AI_REASONING", "on")
 # The analyze_image tool (for files already in a user's space) — same model by default.
 AI_VISION_MODEL = os.getenv("AI_VISION_MODEL", AI_MODEL)
 

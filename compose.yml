@@ -36,8 +36,8 @@ services:
       # --- AI (defaults live in config.py; uncomment to override) ----------
       # The model answers everything, images included.
       AI_MODEL: ${AI_MODEL:-xiaomi/mimo-v2.5}
-      # none | low | medium | high
-      AI_REASONING: ${AI_REASONING:-low}
+      # on | none | low | medium | high
+      AI_REASONING: ${AI_REASONING:-on}
       AI_MAX_CONTEXT_TOKENS: ${AI_MAX_CONTEXT_TOKENS:-200000}
       # AI_MAX_TOOL_RESULT_CHARS: "12000"
       # AI_MAX_ATTACHMENT_CHARS: "20000"

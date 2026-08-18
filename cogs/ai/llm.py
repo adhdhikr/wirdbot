@@ -280,17 +280,19 @@ def build_tool_schemas(funcs) -> list:
 # ---------------------------------------------------------------------------
 def reasoning_config(effort: str):
     """
-    Translate an effort string into OpenRouter's `reasoning` field.
+    Translate a setting into OpenRouter's `reasoning` field.
 
-    'none'/'off'/'' disables thinking; anything else is passed as an effort
-    level (models that only understand a boolean toggle just see `enabled`).
+    'none'/'off' disables thinking. 'on' (the default) just turns it on and
+    lets the model decide how long to think — which is all a model with a
+    boolean thinking switch can do anyway. 'low'/'medium'/'high' additionally
+    ask for a budget, which models that grade their effort will honour.
     """
     effort = (effort or "").strip().lower()
-    if effort in ("", "none", "off", "false", "disabled"):
+    if effort in ("none", "off", "false", "disabled", "no"):
         return {"enabled": False, "exclude": True}
-    if effort not in ("low", "medium", "high"):
-        effort = "medium"
-    return {"enabled": True, "effort": effort}
+    if effort in ("low", "medium", "high"):
+        return {"enabled": True, "effort": effort}
+    return {"enabled": True}
 
 
 # ---------------------------------------------------------------------------
