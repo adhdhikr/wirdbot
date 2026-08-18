@@ -2,7 +2,7 @@ import io
 import logging
 
 import nextcord as discord
-from google.genai import types
+from .llm import types
 
 from .tools import _execute_discord_code_internal
 
@@ -172,12 +172,26 @@ class ContinueExecutionView(discord.ui.View):
         self.stop()
 
 class SandboxExecutionView(discord.ui.View):
-    def __init__(self, execution_logs: list):
+    """Buttons for sandbox runs plus, for thinking models, the model's reasoning."""
+
+    def __init__(self, execution_logs: list, reasoning_logs: list = None):
         super().__init__(timeout=None) 
-        self.logs = execution_logs
-        
-        for i, log in enumerate(execution_logs):
-            if i >= 25:
+        self.logs = execution_logs or []
+        self.reasoning_logs = [r for r in (reasoning_logs or []) if r and r.strip()]
+
+        if self.reasoning_logs:
+            think_btn = discord.ui.Button(
+                label=f"Thoughts ({len(self.reasoning_logs)})" if len(self.reasoning_logs) > 1 else "Thoughts",
+                style=discord.ButtonStyle.secondary,
+                emoji="🧠",
+                custom_id="ai_reasoning"
+            )
+            think_btn.callback = self.show_reasoning
+            self.add_item(think_btn)
+
+        max_buttons = 24 if self.reasoning_logs else 25
+        for i, log in enumerate(self.logs):
+            if i >= max_buttons:
                 break
             btn = discord.ui.Button(
                 label=f">_[{log['index']}]",
@@ -186,6 +200,20 @@ class SandboxExecutionView(discord.ui.View):
             )
             btn.callback = self.create_callback(log)
             self.add_item(btn)
+
+    async def show_reasoning(self, interaction: discord.Interaction):
+        """Show the model's chain of thought, ephemerally."""
+        blocks = []
+        for i, thought in enumerate(self.reasoning_logs, start=1):
+            header = f"### 🧠 Thinking step {i}\n" if len(self.reasoning_logs) > 1 else "### 🧠 Thinking\n"
+            blocks.append(header + thought.strip())
+        full = "\n\n".join(blocks)
+
+        if len(full) > 1900:
+            f = discord.File(io.StringIO(full), filename="reasoning.md")
+            await interaction.response.send_message("🧠 **Reasoning is long — attached below.**", file=f, ephemeral=True)
+        else:
+            await interaction.response.send_message(full, ephemeral=True)
 
     def create_callback(self, log):
         async def callback(interaction: discord.Interaction):

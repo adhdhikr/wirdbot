@@ -10,8 +10,8 @@ This package organizes all AI tools into categorical modules:
 - web: Web search and URL reading
 - user_space: Personal file storage and management
 
-Built-in Gemini capabilities are also configured here:
-- Code execution (sandboxed) - Disabled for Gemini 3 Preview
+Tool functions are converted to JSON tool schemas automatically (see llm.py),
+using their type hints and Google-style docstrings.
 """
 from .admin import (
     ADMIN_TOOLS,

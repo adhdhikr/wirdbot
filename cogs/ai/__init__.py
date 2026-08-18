@@ -3,18 +3,17 @@ import logging
 import traceback
 
 import nextcord as discord
-from google import genai
-from google.genai import types
 from nextcord.ext import commands
 
-from config import GEMINI_API_KEY
+from config import OPENROUTER_API_KEY
 
+from .llm import OpenRouterClient
 from .prompts import get_system_prompt
-from .router import COMPLEX_MODEL, SIMPLE_MODEL, evaluate_complexity
+from .router import COMPLEX_MODEL, SIMPLE_MODEL, evaluate_complexity, reasoning_for
 from .tools import ADMIN_TOOLS, BOT_MANAGEMENT_TOOLS, CUSTOM_TOOLS
 from .tools.memory import fetch_user_memory_context
 from .history import build_chat_history
-from .chat_handler import ChatHandler
+from .chat_handler import THINKING_LINE, ChatHandler
 from db.repositories.ai_whitelist import add_to_whitelist, load_whitelist, remove_from_whitelist
 
 logger = logging.getLogger(__name__)
@@ -26,20 +25,20 @@ class AICog(commands.Cog):
         self.active_bot_messages = {} # Map channel_id -> message_id
         self.interrupt_signals = {} # Map channel_id -> interrupter_name
         self.pending_approvals = {} # Map channel_id -> View
-        self.chat_histories = {} # Map channel_id -> list[types.Content]
+        self.chat_histories = {} # Map channel_id -> list of provider messages
         self.context_pruning_markers = {} # Map channel_id -> message_id
         self.execute_code_whitelist = set()
         
-        if GEMINI_API_KEY:
-            self.client = genai.Client(api_key=GEMINI_API_KEY)
-            self.async_client = self.client.aio
+        if OPENROUTER_API_KEY:
+            self.client = OpenRouterClient(api_key=OPENROUTER_API_KEY)
+            self.async_client = self.client
             self.has_key = True
             self.tool_map = {func.__name__: func for func in CUSTOM_TOOLS}
             self.all_tools = list(CUSTOM_TOOLS)
             self.chat_handler = ChatHandler(self)
         else:
             self.has_key = False
-            logger.warning("GEMINI_API_KEY not found. AI features disabled.")
+            logger.warning("OPENROUTER_API_KEY not found. AI features disabled.")
 
     @commands.Cog.listener()
     async def on_ready(self):
@@ -80,7 +79,7 @@ class AICog(commands.Cog):
                         
                         try:
                             from .tools.vision import analyze_image
-                            description = await analyze_image(target_att.url, question="Describe this image in extreme detail for context.", model_name=SIMPLE_MODEL)
+                            description = await analyze_image(target_att.url, question="Describe this image in extreme detail for context.")
                             image_analysis_text = f"\n[System: User uploaded an Image. Description: {description}]"
                         except Exception as e:
                             logger.error(f"Pre-routing image analysis failed: {e}")
@@ -96,8 +95,8 @@ class AICog(commands.Cog):
                 combined_context = message.content + image_analysis_text
                 msg_content_lower = message.content.lower()
                 
-                force_pro = any(kw in msg_content_lower for kw in ["use pro", "force pro", "pro model", "pro brain", "use 3 pro"])
-                force_flash = any(kw in msg_content_lower for kw in ["use flash", "force flash", "flash model", "fast model", "use 3 flash"])
+                force_pro = any(kw in msg_content_lower for kw in ["use pro", "force pro", "pro model", "pro brain", "big model", "think hard"])
+                force_flash = any(kw in msg_content_lower for kw in ["use flash", "force flash", "flash model", "fast model", "small model"])
                 
                 if force_pro:
                     complexity = "COMPLEX"
@@ -111,7 +110,7 @@ class AICog(commands.Cog):
                 selected_model = COMPLEX_MODEL if complexity == "COMPLEX" else SIMPLE_MODEL
                 logger.info(f"Smart Routing: {complexity} -> {selected_model}")
                 
-                status_text = "-# 🧠 Thinking (Pro Model)..." if selected_model == COMPLEX_MODEL else "-# <a:loading:1466182602317889576> Generating..."
+                status_text = THINKING_LINE if selected_model == COMPLEX_MODEL else "-# <a:loading:1466182602317889576> Generating..."
                 sent_message = await message.reply(status_text)
                 self.active_tasks[sent_message.id] = current_task
                 tracked_msg_ids.append(sent_message.id)
@@ -151,14 +150,12 @@ class AICog(commands.Cog):
                     logger.error(f"Memory injection error: {e}")
 
                 # 7. Start Chat Session
-                chat = self.async_client.chats.create(
+                chat = self.client.chats.create(
                     model=selected_model,
                     history=history,
-                    config=types.GenerateContentConfig(
-                        tools=allowed_tools,
-                        system_instruction=get_system_prompt(is_admin=is_admin, is_owner=is_owner, whitelisted_guild=whitelisted_guild),
-                        automatic_function_calling=dict(disable=True) 
-                    )
+                    tools=allowed_tools,
+                    system_instruction=get_system_prompt(is_admin=is_admin, is_owner=is_owner, whitelisted_guild=whitelisted_guild),
+                    reasoning=reasoning_for(selected_model),
                 )
                 chat.is_pro_model = (selected_model == COMPLEX_MODEL)
                 chat.model_name = selected_model

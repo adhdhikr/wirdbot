@@ -4,14 +4,32 @@ Evaluates query complexity to select the best model.
 """
 import logging
 
-from google import genai
+from config import (
+    AI_COMPLEX_MODEL,
+    AI_COMPLEX_REASONING,
+    AI_ROUTER_MODEL,
+    AI_SIMPLE_MODEL,
+    AI_SIMPLE_REASONING,
+)
 
-from config import GEMINI_API_KEY
+from .llm import generate, reasoning_config
 
 logger = logging.getLogger(__name__)
-EVALUATOR_MODEL = "gemini-2.5-flash-lite"
-SIMPLE_MODEL = "gemini-3-flash-preview"
-COMPLEX_MODEL = "gemini-3-pro-preview"
+EVALUATOR_MODEL = AI_ROUTER_MODEL
+SIMPLE_MODEL = AI_SIMPLE_MODEL
+COMPLEX_MODEL = AI_COMPLEX_MODEL
+
+# Reasoning ("thinking") budget per tier — see config.py to tune via .env.
+REASONING = {
+    SIMPLE_MODEL: reasoning_config(AI_SIMPLE_REASONING),
+    COMPLEX_MODEL: reasoning_config(AI_COMPLEX_REASONING),
+}
+
+
+def reasoning_for(model: str) -> dict:
+    """Reasoning config for a model, defaulting to the simple tier's budget."""
+    return REASONING.get(model, reasoning_config(AI_SIMPLE_REASONING))
+
 
 ROUTER_PROMPT = """
 You are a request classifier. Classify the following user message as 'SIMPLE' or 'COMPLEX'.
@@ -28,24 +46,28 @@ async def evaluate_complexity(text: str) -> str:
     Evaluates the complexity of a user query using a fast model.
     Returns: 'SIMPLE' or 'COMPLEX'
     """
-    if not text or len(text.strip()) < 20: 
+    if not text or len(text.strip()) < 20:
         return "SIMPLE"
-        
+
     try:
-        client = genai.Client(api_key=GEMINI_API_KEY)
-        response = await client.aio.models.generate_content(
+        response = await generate(
             model=EVALUATOR_MODEL,
-            contents=[ROUTER_PROMPT, f"User Message: {text}"],
-            config={"temperature": 0.0} # Deterministic
+            messages=[
+                {"role": "system", "content": ROUTER_PROMPT},
+                {"role": "user", "content": f"User Message: {text}"},
+            ],
+            reasoning=reasoning_config("none"),  # classification needs no thinking
+            temperature=0.0,  # deterministic
+            max_tokens=16,
         )
-        
+
         if response.text:
             result = response.text.strip().upper()
             if "COMPLEX" in result:
                 return "COMPLEX"
-                
+
         return "SIMPLE"
-        
+
     except Exception as e:
         logger.error(f"Router evaluation failed: {e}")
         return "SIMPLE"

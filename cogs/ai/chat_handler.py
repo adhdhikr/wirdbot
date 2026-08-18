@@ -5,14 +5,18 @@ import re
 import traceback
 
 import nextcord as discord
-from google.genai import types
 
-from config import MAX_TOOL_CALLS
+from config import AI_SIMPLE_MODEL, MAX_TOOL_CALLS
+
+from .llm import types
 
 from .utils import safe_split_text
 from .views import CodeApprovalView, ContinueExecutionView, SandboxExecutionView
 
 logger = logging.getLogger(__name__)
+
+# Status line shown while a reasoning model is thinking.
+THINKING_LINE = "-# 🧠 Thinking..."
 
 # ---------------------------------------------------------------------------
 # Per-tool human-readable label builder
@@ -211,10 +215,39 @@ class ChatHandler:
         self.cog = cog
         self.bot = cog.bot
 
-    async def process_chat_response(self, chat_session, response, message: discord.Message, existing_message: discord.Message = None, tool_count: int = 0, execution_logs: list = None, allowed_tool_names: set = None):
-         """Process a single response from Gemini (Tool Call vs Text)"""
+    async def _emit_text(self, message, sent_message, text):
+        """
+        Append model text to the in-progress reply, spilling into new messages
+        when it no longer fits Discord's 2000-char limit.
+        """
+        for idx, chunk in enumerate(safe_split_text(text, 1900)):
+            if idx == 0 and sent_message and len(sent_message.content) + len(chunk) + 1 < 2000:
+                try:
+                    sent_message = await sent_message.edit(content=(sent_message.content + "\n" + chunk).strip())
+                    continue
+                except Exception as e:
+                    logger.error(f"Failed to append text to message: {e}")
+            sent_message = await message.reply(chunk)
+            self.cog.active_tasks[sent_message.id] = asyncio.current_task()
+        return sent_message
+
+    def _build_view(self, execution_logs: list, reasoning_logs: list):
+        """Attach the sandbox / reasoning buttons, if there is anything to show."""
+        if not execution_logs and not reasoning_logs:
+            return None
+        return SandboxExecutionView(execution_logs, reasoning_logs=reasoning_logs)
+
+    async def process_chat_response(self, chat_session, response, message: discord.Message, existing_message: discord.Message = None, tool_count: int = 0, execution_logs: list = None, allowed_tool_names: set = None, reasoning_logs: list = None):
+         """Process a single model response (tool call vs text)."""
          if execution_logs is None:
              execution_logs = []
+         if reasoning_logs is None:
+             reasoning_logs = list(getattr(chat_session, 'reasoning_log', []) or [])
+         # Reasoning models return their chain of thought alongside the answer;
+         # keep it so the user can open it from the 🧠 button.
+         current_reasoning = getattr(response, 'reasoning', '')
+         if current_reasoning and current_reasoning not in reasoning_logs:
+             reasoning_logs.append(current_reasoning)
          try:
             if tool_count >= MAX_TOOL_CALLS:
                 ctx = await self.bot.get_context(message)
@@ -252,18 +285,7 @@ class ChatHandler:
                 
                 if fn:
                     if accumulated_text.strip():
-                        chunks = safe_split_text(accumulated_text, 1900)
-                        for idx, chunk in enumerate(chunks):
-                            if idx == 0 and sent_message:
-                                formatted_content = sent_message.content + "\n" + chunk
-                                if len(formatted_content) < 2000:
-                                    sent_message = await sent_message.edit(content=formatted_content)
-                                else:
-                                    sent_message = await message.reply(chunk)
-                                    self.cog.active_tasks[sent_message.id] = asyncio.current_task()
-                            else:
-                                sent_message = await message.reply(chunk)
-                                self.cog.active_tasks[sent_message.id] = asyncio.current_task()
+                        sent_message = await self._emit_text(message, sent_message, accumulated_text)
                         accumulated_text = ""
 
                     fname = fn.name
@@ -282,7 +304,7 @@ class ChatHandler:
                     if sent_message:
                          try:
                             content = sent_message.content
-                            content = content.replace("-# 🧠 Thinking (Pro Model)...", "").strip()
+                            content = content.replace(THINKING_LINE, "").strip()
                             content = re.sub(r"-# <a:loading:\d+> Generating\.\.\.", "", content).strip()
 
                             if len(content) + len(status_line) < 2000:
@@ -305,7 +327,8 @@ class ChatHandler:
                         tool_result = f"❌ Permission Denied: Tool '{fname}' is not available to you."
                         tool_responses.append(types.Part.from_function_response(
                             name=fname,
-                            response={'result': tool_result}
+                            response={'result': tool_result},
+                            id=getattr(fn, 'id', None)
                         ))
                         logger.warning(f"Blocked out-of-scope tool call '{fname}' by {message.author} (not in allowed_tool_names)")
                         continue
@@ -323,7 +346,8 @@ class ChatHandler:
                              tool_result = "❌ Permission Denied: execute_discord_code requires Bot Owner, or Server Admin in a whitelisted guild."
                              tool_responses.append(types.Part.from_function_response(
                                  name=fname,
-                                 response={'result': tool_result}
+                                 response={'result': tool_result},
+                                 id=getattr(fn, 'id', None)
                              ))
                              pending_execution = False
                     
@@ -338,7 +362,7 @@ class ChatHandler:
                             'user_id': message.author.id,
                             'is_owner': await self.bot.is_owner(message.author),
                             'is_admin': message.author.guild_permissions.administrator if message.guild else False,
-                            'model_name': getattr(chat_session, 'model_name', 'gemini-3-flash-preview'),
+                            'model_name': getattr(chat_session, 'model_name', AI_SIMPLE_MODEL),
                             'cog': self.cog,
                             'whitelisted_guild': message.guild.id in self.cog.execute_code_whitelist if message.guild else False
                         }
@@ -403,16 +427,17 @@ class ChatHandler:
                                     if match.start() == 0:
                                         new_content = new_content.lstrip()
 
-                                    view = SandboxExecutionView(execution_logs) if execution_logs else None
+                                    view = self._build_view(execution_logs, reasoning_logs)
                                     sent_message = await sent_message.edit(content=new_content, view=view)
                                 else:
-                                    view = SandboxExecutionView(execution_logs) if execution_logs else None
+                                    view = self._build_view(execution_logs, reasoning_logs)
                                     sent_message = await sent_message.edit(content=current_content + " " + (error_emoji if error_occurred else success_emoji), view=view)
                              except Exception as e:
                                 logger.error(f"Failed to update tool status: {e}")
                         tool_responses.append(types.Part.from_function_response(
                             name=fname,
-                            response={'result': str(tool_result)} 
+                            response={'result': str(tool_result)},
+                            id=getattr(fn, 'id', None)
                         ))
 
             if pending_execution:
@@ -430,43 +455,29 @@ class ChatHandler:
 
             if tool_responses:
                  if accumulated_text.strip():
-                    chunks = safe_split_text(accumulated_text, 1900)
-                    for idx, chunk in enumerate(chunks):
-                        if idx == 0 and sent_message:
-                             content = sent_message.content
-                             if len(content) + len(chunk) < 2000:
-                                 try:
-                                     sent_message = await sent_message.edit(content=content + "\n" + chunk)
-                                 except Exception:
-                                     sent_message = await message.reply(chunk)
-                                     self.cog.active_tasks[sent_message.id] = asyncio.current_task()
-                             else:
-                                 sent_message = await message.reply(chunk)
-                                 self.cog.active_tasks[sent_message.id] = asyncio.current_task()
-                        else:
-                             sent_message = await message.reply(chunk)
-                             self.cog.active_tasks[sent_message.id] = asyncio.current_task()
+                    sent_message = await self._emit_text(message, sent_message, accumulated_text)
                     accumulated_text = ""
                  if getattr(chat_session, 'is_pro_model', False):
                      if sent_message:
                          current_content = sent_message.content
                          loading_pattern = r"-# <a:loading:\d+> Generating\.\.\."
                          if re.search(loading_pattern, current_content):
-                             new_content = re.sub(loading_pattern, "-# 🧠 Thinking (Pro Model)...", current_content)
+                             new_content = re.sub(loading_pattern, THINKING_LINE, current_content)
                              sent_message = await sent_message.edit(content=new_content)
-                         elif "-# 🧠 Thinking (Pro Model)..." not in current_content:
-                             sent_message = await sent_message.edit(content=current_content + "\n-# 🧠 Thinking (Pro Model)...")
+                         elif THINKING_LINE not in current_content:
+                             sent_message = await sent_message.edit(content=current_content + "\n" + THINKING_LINE)
                      else:
-                         sent_message = await message.reply("-# 🧠 Thinking (Pro Model)...")
+                         sent_message = await message.reply(THINKING_LINE)
                  next_response = await chat_session.send_message(tool_responses)
-                 return await self.process_chat_response(chat_session, next_response, message, sent_message, tool_count=tool_count+1, execution_logs=execution_logs, allowed_tool_names=allowed_tool_names)
+                 return await self.process_chat_response(chat_session, next_response, message, sent_message, tool_count=tool_count+1, execution_logs=execution_logs, allowed_tool_names=allowed_tool_names, reasoning_logs=reasoning_logs)
             
             if accumulated_text.strip():
                 if getattr(chat_session, 'is_pro_model', False):
-                    header = "**Using pro model 🧠**\n\n"
+                    model_label = str(getattr(chat_session, 'model_name', '')).split('/')[-1]
+                    header = f"**Using {model_label} 🧠**\n\n" if model_label else "**Using pro model 🧠**\n\n"
                     if not accumulated_text.startswith(header):
                         accumulated_text = header + accumulated_text
-                view = SandboxExecutionView(execution_logs) if execution_logs else None
+                view = self._build_view(execution_logs, reasoning_logs)
 
                 if sent_message and len(sent_message.content) + len(accumulated_text) < 2000:
                      final_content = finalize_content(sent_message.content)
@@ -511,7 +522,7 @@ class ChatHandler:
         """Initial Trigger for the chat loop."""
         try:
             response = await chat_session.send_message(content)
-            return await self.process_chat_response(chat_session, response, message, existing_message=sent_message, execution_logs=[], allowed_tool_names=allowed_tool_names)
+            return await self.process_chat_response(chat_session, response, message, existing_message=sent_message, execution_logs=[], allowed_tool_names=allowed_tool_names, reasoning_logs=[])
         except Exception as e:
             logger.error(f"AI Turn Error: {e}")
             if sent_message:

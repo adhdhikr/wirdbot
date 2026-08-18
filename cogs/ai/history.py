@@ -1,6 +1,6 @@
 import logging
 import nextcord as discord
-from google.genai import types
+from .llm import types
 
 logger = logging.getLogger(__name__)
 

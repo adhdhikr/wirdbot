@@ -1,5 +1,4 @@
 nextcord
-google-genai
 python-dotenv
 aiohttp
 aiofiles
