@@ -276,10 +276,17 @@ If asked about the bot's internal code or database:
 
 SYSTEM_PROMPT = BASE_PROMPT + PROMPT_DISCORD_TOOLS + PROMPT_ADMIN_TOOLS + PROMPT_USER_SPACE + PROMPT_ADMIN_GUIDELINES + PROMPT_FOOTER
 
-def get_system_prompt(is_admin: bool = False, is_owner: bool = False, whitelisted_guild: bool = False) -> str:
+def get_system_prompt(is_admin: bool = False, is_owner: bool = False, whitelisted_guild: bool = False,
+                      available_tools=None) -> str:
     """
     Constructs the system prompt based on user permissions.
     Permission context is injected here (not in message history) to prevent contamination.
+
+    `available_tools` is the set of tool names this user can actually call. The
+    guidance above describes tools some users don't have (clear_context and the
+    admin tools are staff-only), so the list is appended as the authority —
+    without it the model calls a tool it was told about, gets denied, and the
+    turn is wasted.
     """
     prompt = BASE_PROMPT
     
@@ -301,4 +308,15 @@ def get_system_prompt(is_admin: bool = False, is_owner: bool = False, whiteliste
         prompt += "\n\n[CURRENT USER PERMISSION: Regular User - No access to execute_discord_code or admin tools]"
         
     prompt += PROMPT_FOOTER
+
+    if available_tools:
+        tool_list = ", ".join(f"`{name}`" for name in sorted(available_tools))
+        prompt += (
+            "\n\n**THE TOOLS YOU HAVE RIGHT NOW** — this list is authoritative:\n"
+            f"{tool_list}\n"
+            "Anything not on this list does not exist for you in this conversation, "
+            "even if a rule above mentions it. Never call one, and never tell the user "
+            "you are about to — just do what you can with the tools you have."
+        )
+
     return prompt

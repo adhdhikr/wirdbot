@@ -35,7 +35,7 @@ services:
 
       # --- AI (defaults live in config.py; uncomment to override) ----------
       # The model answers everything, images included.
-      AI_MODEL: ${AI_MODEL:-qwen/qwen3-vl-8b-instruct}
+      AI_MODEL: ${AI_MODEL:-moonshotai/kimi-k2.5}
       # none | low | medium | high
       AI_REASONING: ${AI_REASONING:-low}
       AI_MAX_CONTEXT_TOKENS: ${AI_MAX_CONTEXT_TOKENS:-200000}

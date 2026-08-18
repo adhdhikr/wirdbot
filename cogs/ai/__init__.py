@@ -11,7 +11,7 @@ from .attachments import build_attachment_parts
 from .llm import OpenRouterClient, Part
 from .prompts import get_system_prompt
 from .router import ROUTING_ENABLED, reasoning_for, select_model, thinks
-from .tools import ADMIN_TOOLS, BOT_MANAGEMENT_TOOLS, CUSTOM_TOOLS
+from .tools import CUSTOM_TOOLS, filter_tools
 from .tools.memory import fetch_user_memory_context
 from .history import build_chat_history
 from .chat_handler import GENERATING_LINE, THINKING_LINE, ChatHandler
@@ -93,14 +93,13 @@ class AICog(commands.Cog):
                 whitelisted_guild = message.guild.id in self.execute_code_whitelist if message.guild else False
                 
                 # 5. Tool Filtering
-                allowed_tools = list(self.all_tools)
-                if not (is_admin or is_owner):
-                    restricted = [t.__name__ for t in ADMIN_TOOLS] + [t.__name__ for t in BOT_MANAGEMENT_TOOLS] + ['execute_discord_code']
-                    allowed_tools = [t for t in self.all_tools if t.__name__ not in restricted]
-                    bot_mgmt_names = [t.__name__ for t in BOT_MANAGEMENT_TOOLS]
-                    if not whitelisted_guild:
-                        bot_mgmt_names.append('execute_discord_code')
-                    allowed_tools = [t for t in self.all_tools if t.__name__ not in bot_mgmt_names]
+                allowed_tools = filter_tools(
+                    self.all_tools,
+                    is_admin=is_admin,
+                    is_owner=is_owner,
+                    whitelisted_guild=whitelisted_guild,
+                )
+                allowed_tool_names = {t.__name__ for t in allowed_tools}
 
                 # 6. Memory Injection
                 memory_context = ""
@@ -121,7 +120,12 @@ class AICog(commands.Cog):
                     model=selected_model,
                     history=history,
                     tools=allowed_tools,
-                    system_instruction=get_system_prompt(is_admin=is_admin, is_owner=is_owner, whitelisted_guild=whitelisted_guild),
+                    system_instruction=get_system_prompt(
+                        is_admin=is_admin,
+                        is_owner=is_owner,
+                        whitelisted_guild=whitelisted_guild,
+                        available_tools=allowed_tool_names,
+                    ),
                     reasoning=reasoning_for(selected_model),
                 )
                 chat.is_pro_model = is_thinking_model
@@ -140,7 +144,6 @@ class AICog(commands.Cog):
                 turn_content = [Part(text=user_msg)] + image_parts
 
                 # 8. Delegation to Handler
-                allowed_tool_names = {t.__name__ for t in allowed_tools}
                 await self.chat_handler.process_chat_turn(chat, turn_content, message, sent_message=sent_message, allowed_tool_names=allowed_tool_names)
                 
                 if message.channel.id not in self.context_pruning_markers:

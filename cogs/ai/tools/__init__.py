@@ -141,4 +141,30 @@ __all__ = [
     'get_campaign_responses',
     'extract_pdf_images',
     'analyze_image',
+    'filter_tools',
 ]
+
+
+def filter_tools(tools, is_admin: bool = False, is_owner: bool = False,
+                 whitelisted_guild: bool = False) -> list:
+    """
+    The tools a given user is allowed to call.
+
+    Database/codebase access and bot management are staff-only, and
+    execute_discord_code additionally needs a whitelisted guild for admins.
+    The owner gets everything. Withholding a tool here is what keeps it out of
+    the schemas we send, so the model never learns it exists for this user.
+    """
+    if is_owner:
+        return list(tools)
+
+    blocked = set()
+    if is_admin:
+        if not whitelisted_guild:
+            blocked.add('execute_discord_code')
+    else:
+        blocked = {t.__name__ for t in ADMIN_TOOLS}
+        blocked |= {t.__name__ for t in BOT_MANAGEMENT_TOOLS}
+        blocked.add('execute_discord_code')
+
+    return [t for t in tools if t.__name__ not in blocked]

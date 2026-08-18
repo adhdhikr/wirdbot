@@ -324,18 +324,15 @@ class ChatHandler:
                     tool_result = "Error: Unknown tool"
                     error_occurred = False
 
-                    # Gate: reject any tool not in the per-message allowed set
+                    # Gate: reject any tool not in the per-message allowed set.
+                    # This falls through to the status update below so the line
+                    # gets its ❌ instead of hanging on "Running ..." forever.
                     if allowed_tool_names is not None and fname not in allowed_tool_names:
                         tool_result = f"❌ Permission Denied: Tool '{fname}' is not available to you."
-                        tool_responses.append(types.Part.from_function_response(
-                            name=fname,
-                            response={'result': tool_result},
-                            id=getattr(fn, 'id', None)
-                        ))
+                        error_occurred = True
                         logger.warning(f"Blocked out-of-scope tool call '{fname}' by {message.author} (not in allowed_tool_names)")
-                        continue
 
-                    if fname == 'execute_discord_code':
+                    elif fname == 'execute_discord_code':
                          _is_owner = await self.bot.is_owner(message.author)
                          _is_admin = message.author.guild_permissions.administrator if message.guild else False
                          _whitelisted = message.guild.id in self.cog.execute_code_whitelist if message.guild else False
@@ -344,13 +341,11 @@ class ChatHandler:
                              pending_execution = True
                              pending_execution_code = fargs.get('code', '')
                          else:
-                             # Permission denied — feed error back to model and keep going
+                             # Permission denied — the status update below feeds the
+                             # error back to the model and we keep going. Appending
+                             # it here too would send two results for one call.
                              tool_result = "❌ Permission Denied: execute_discord_code requires Bot Owner, or Server Admin in a whitelisted guild."
-                             tool_responses.append(types.Part.from_function_response(
-                                 name=fname,
-                                 response={'result': tool_result},
-                                 id=getattr(fn, 'id', None)
-                             ))
+                             error_occurred = True
                              pending_execution = False
                     
                     elif fname in self.cog.tool_map:
