@@ -13,7 +13,7 @@ from .router import ROUTING_ENABLED, reasoning_for, select_model, thinks
 from .tools import ADMIN_TOOLS, BOT_MANAGEMENT_TOOLS, CUSTOM_TOOLS
 from .tools.memory import fetch_user_memory_context
 from .history import build_chat_history
-from .chat_handler import THINKING_LINE, ChatHandler
+from .chat_handler import GENERATING_LINE, THINKING_LINE, ChatHandler
 from db.repositories.ai_whitelist import add_to_whitelist, load_whitelist, remove_from_whitelist
 
 logger = logging.getLogger(__name__)
@@ -95,7 +95,7 @@ class AICog(commands.Cog):
                 selected_model = await select_model(message.content, image_analysis_text)
                 is_thinking_model = thinks(selected_model)
 
-                status_text = THINKING_LINE if is_thinking_model else "-# <a:loading:1466182602317889576> Generating..."
+                status_text = THINKING_LINE if is_thinking_model else GENERATING_LINE
                 sent_message = await message.reply(status_text)
                 self.active_tasks[sent_message.id] = current_task
                 tracked_msg_ids.append(sent_message.id)

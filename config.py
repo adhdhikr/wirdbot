@@ -17,7 +17,7 @@ OPENROUTER_APP_NAME = os.getenv("OPENROUTER_APP_NAME", "WirdBot")
 # One model handles every chat by default.
 AI_MODEL = os.getenv("AI_MODEL", "deepseek/deepseek-v4-pro")
 # Reasoning effort: "none" disables thinking, otherwise low/medium/high.
-AI_REASONING = os.getenv("AI_REASONING", "high")
+AI_REASONING = os.getenv("AI_REASONING", "low")
 # Images always go to a vision-capable model, whatever the chat model is.
 AI_VISION_MODEL = os.getenv("AI_VISION_MODEL", "qwen/qwen3.7-flash")
 

@@ -15,8 +15,10 @@ from .views import CodeApprovalView, ContinueExecutionView, SandboxExecutionView
 
 logger = logging.getLogger(__name__)
 
-# Status line shown while a reasoning model is thinking.
-THINKING_LINE = "-# 🧠 Thinking..."
+# Status lines shown while the model is working.
+LOADING_EMOJI = "<a:loading:1466182602317889576>"
+THINKING_LINE = f"-# {LOADING_EMOJI} 🧠 Thinking..."
+GENERATING_LINE = f"-# {LOADING_EMOJI} Generating..."
 
 # ---------------------------------------------------------------------------
 # Per-tool human-readable label builder
