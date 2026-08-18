@@ -1,5 +1,4 @@
 import logging
-import re
 
 import nextcord as discord
 
@@ -14,20 +13,6 @@ from .llm import types
 
 logger = logging.getLogger(__name__)
 
-# Everything the handler decorates a bot message with, so it can be taken back
-# off before the message is shown to the model as its own past turn.
-_SUBTEXT_LINE = re.compile(r'^[ \t]*-#.*$', re.MULTILINE)          # tool status lines
-_MODEL_HEADER = re.compile(r'^\*\*Using [^\n*]*\*\*\s*', re.MULTILINE)  # "**Using kimi-k2.5 🧠**"
-_INTERRUPTED = re.compile(r'🛑 \*\*(?:Interrupted by|Auto-Rejected)[^\n]*', re.MULTILINE)
-_BLANK_RUN = re.compile(r'\n{3,}')
-
-
-def clean_bot_message(content: str) -> str:
-    """Strip handler-added decoration from a bot message: status lines, the
-    model header, interruption notices."""
-    for pattern in (_SUBTEXT_LINE, _MODEL_HEADER, _INTERRUPTED):
-        content = pattern.sub('', content)
-    return _BLANK_RUN.sub('\n\n', content).strip()
 
 async def build_chat_history(bot: discord.Client, message: discord.Message, context_pruning_markers: dict) -> list:
     """
@@ -85,21 +70,18 @@ async def build_chat_history(bot: discord.Client, message: discord.Message, cont
             for att in msg.attachments:
                 content += f"\n[System: Attachment: {att.url}]"
 
-        if role == "model":
-            # The bot's own turns go back verbatim, minus everything the bot
-            # itself added to them. Metadata prefixes and tool status lines are
-            # written by the handler, not the model — feeding them back reads
-            # as "this is how I write", and the model starts producing its own
-            # fake "-# 🛠️ Running ..." lines and [Replying to ID: ...] headers.
-            text = clean_bot_message(content)
-            if not text:
-                continue
-        else:
-            time_str = msg.created_at.strftime('%Y-%m-%d %H:%M:%S UTC')
-            prefix = f"[{time_str}] [Message ID: {msg.id}]"
-            if msg.reference and msg.reference.message_id:
-                prefix += f" [Replying to ID: {msg.reference.message_id}]"
+        time_str = msg.created_at.strftime('%Y-%m-%d %H:%M:%S UTC')
+        prefix = f"[{time_str}] [Message ID: {msg.id}]"
+        if msg.reference and msg.reference.message_id:
+            prefix += f" [Replying to ID: {msg.reference.message_id}]"
+
+        if role == "user":
             text = f"{prefix} User {msg.author.display_name} ({msg.author.id}): {content}"
+        else:
+            # The bot's own turns keep their ids and tool status lines: it needs
+            # to know what it already did and which message was which. The
+            # system prompt explains that the system wrote those parts.
+            text = f"{prefix} {content}"
 
         history.append(types.Content(role=role, parts=[types.Part(text=text)]))
 
