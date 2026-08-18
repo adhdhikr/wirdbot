@@ -23,7 +23,8 @@ import typing
 import aiohttp
 
 from config import (
-    AI_MAX_HISTORY_CHARS,
+    AI_MAX_CONTEXT_TOKENS,
+    AI_MAX_TOOL_RESULT_CHARS,
     OPENROUTER_API_KEY,
     OPENROUTER_APP_NAME,
     OPENROUTER_APP_URL,
@@ -75,12 +76,13 @@ class Part:
 
     def __init__(self, text: str = None, function_call: FunctionCall = None,
                  function_response: FunctionResponse = None, thought: str = None,
-                 inline_data: dict = None):
+                 inline_data: dict = None, image_url: str = None):
         self.text = text
         self.function_call = function_call
         self.function_response = function_response
         self.thought = thought
         self.inline_data = inline_data
+        self.image_url = image_url
 
     @classmethod
     def from_text(cls, text: str):
@@ -95,14 +97,22 @@ class Part:
         return cls(function_call=FunctionCall(name=name, args=args, id=id))
 
     @classmethod
+    def from_image_url(cls, url: str):
+        """An image the model looks at directly (http(s) or a data: URI)."""
+        return cls(image_url=url)
+
+    @classmethod
     def from_bytes(cls, data: bytes, mime_type: str = "image/jpeg"):
-        return cls(inline_data={'data': data, 'mime_type': mime_type})
+        import base64
+        return cls(image_url=f"data:{mime_type};base64,{base64.b64encode(data).decode()}")
 
     def __repr__(self):
         if self.function_call:
             return f"Part({self.function_call!r})"
         if self.function_response:
             return f"Part({self.function_response!r})"
+        if self.image_url:
+            return f"Part(image_url={self.image_url[:40]!r})"
         return f"Part(text={(self.text or '')[:40]!r})"
 
 
@@ -284,6 +294,47 @@ def reasoning_config(effort: str):
 
 
 # ---------------------------------------------------------------------------
+# Context accounting
+# ---------------------------------------------------------------------------
+CHARS_PER_TOKEN = 4       # good enough for budgeting; we are not billing on it
+IMAGE_TOKEN_COST = 800    # rough per-image cost, since the URL itself is tiny
+
+
+def estimate_tokens(obj) -> int:
+    """Rough token count for a message, message list, or tool schema."""
+    if isinstance(obj, list):
+        return sum(estimate_tokens(o) for o in obj)
+
+    images = 0
+    if isinstance(obj, dict) and isinstance(obj.get('content'), list):
+        images = sum(1 for block in obj['content'] if isinstance(block, dict)
+                     and block.get('type') == 'image_url')
+
+    text = obj if isinstance(obj, str) else json.dumps(obj, default=str)
+    return len(text) // CHARS_PER_TOKEN + images * IMAGE_TOKEN_COST
+
+
+def truncate_tool_result(text: str, limit: int = None) -> str:
+    """Cap a tool result so one huge page can't dominate the rest of the chat."""
+    limit = limit or AI_MAX_TOOL_RESULT_CHARS
+    if not isinstance(text, str) or len(text) <= limit:
+        return text
+    dropped = len(text) - limit
+    return text[:limit] + f"\n\n[... truncated, {dropped} more characters. Narrow the query if you need the rest.]"
+
+
+def _user_content(text_bits: list, image_urls: list):
+    """Build message content: a plain string, or blocks when images are present."""
+    text = "\n".join(b for b in text_bits if b)
+    if not image_urls:
+        return text
+    blocks = [{"type": "image_url", "image_url": {"url": url}} for url in image_urls]
+    if text:
+        blocks.insert(0, {"type": "text", "text": text})
+    return blocks
+
+
+# ---------------------------------------------------------------------------
 # HTTP
 # ---------------------------------------------------------------------------
 def _headers() -> dict:
@@ -426,6 +477,7 @@ class ChatSession:
 
         items = content if isinstance(content, (list, tuple)) else [content]
         text_bits = []
+        image_urls = []
 
         for item in items:
             if isinstance(item, str):
@@ -435,13 +487,15 @@ class ChatSession:
             elif isinstance(item, Part):
                 if item.function_response is not None:
                     self.messages.append(self._tool_message(item.function_response))
+                elif item.image_url:
+                    image_urls.append(item.image_url)
                 elif item.text:
                     text_bits.append(item.text)
             else:
                 text_bits.append(str(item))
 
-        if text_bits:
-            self.messages.append({"role": "user", "content": "\n".join(text_bits)})
+        if text_bits or image_urls:
+            self.messages.append({"role": "user", "content": _user_content(text_bits, image_urls)})
 
     def _tool_message(self, fr: FunctionResponse) -> dict:
         """Match a tool result to the call it answers, by id then by name."""
@@ -456,11 +510,13 @@ class ChatSession:
             self._pending_tool_calls = [c for c in self._pending_tool_calls if c['id'] != call_id]
 
         result = fr.response.get('result', fr.response) if isinstance(fr.response, dict) else fr.response
+        if not isinstance(result, str):
+            result = json.dumps(result, default=str)
         return {
             "role": "tool",
             "tool_call_id": call_id,
             "name": fr.name,
-            "content": result if isinstance(result, str) else json.dumps(result, default=str),
+            "content": truncate_tool_result(result),
         }
 
     def _close_unanswered_tool_calls(self):
@@ -474,22 +530,36 @@ class ChatSession:
             })
         self._pending_tool_calls = []
 
+    def _history_budget(self) -> int:
+        """Tokens left for the conversation after the fixed costs of a request."""
+        fixed = estimate_tokens(self.tool_schemas)
+        if self.system_instruction:
+            fixed += estimate_tokens(self.system_instruction)
+        fixed += self.max_tokens  # room for the reply itself
+        return max(2000, AI_MAX_CONTEXT_TOKENS - fixed)
+
     def _trim_history(self):
         """
-        Drop the oldest turns once the conversation outgrows the budget.
+        Drop the oldest turns once the conversation outgrows its budget.
 
-        Tool results are the bulk of it (web pages, file dumps), and paying to
-        resend them forever is pointless. A 'tool' message may never lead the
-        list — it would be orphaned from the assistant call it answers.
+        Tool results are the bulk of it (web pages, file dumps) and paying to
+        resend them forever is pointless. Two rules: a 'tool' message may never
+        lead the list (it would be orphaned from the call it answers), and the
+        most recent turn always survives, however big it is.
         """
-        def size(msg):
-            return len(json.dumps(msg, default=str))
+        budget = self._history_budget()
+        total = estimate_tokens(self.messages)
+        dropped = 0
 
-        total = sum(size(m) for m in self.messages)
-        while total > AI_MAX_HISTORY_CHARS and len(self.messages) > 2:
-            total -= size(self.messages.pop(0))
-            while self.messages and self.messages[0].get('role') == 'tool':
-                total -= size(self.messages.pop(0))
+        while total > budget and len(self.messages) > 1:
+            total -= estimate_tokens(self.messages.pop(0))
+            dropped += 1
+            while len(self.messages) > 1 and self.messages[0].get('role') == 'tool':
+                total -= estimate_tokens(self.messages.pop(0))
+                dropped += 1
+
+        if dropped:
+            logger.info(f"Context trim: dropped {dropped} messages, ~{total} tokens left of {budget}")
 
     # -- request ---------------------------------------------------------
     def _build_payload(self) -> dict:
@@ -518,7 +588,9 @@ class ChatSession:
         self._append_user_content(content)
         self._close_unanswered_tool_calls()
 
-        data = await _post(self._build_payload())
+        payload = self._build_payload()
+        logger.debug(f"Request ~{estimate_tokens(payload['messages'])} tokens over {len(payload['messages'])} messages")
+        data = await _post(payload)
 
         choices = data.get('choices') or []
         if not choices:
@@ -570,6 +642,7 @@ def _content_to_messages(item: Content) -> list:
     role = "assistant" if item.role in ("model", "assistant") else "user"
     messages = []
     text_bits = []
+    image_urls = []
 
     for part in item.parts or []:
         if part.function_response is not None:
@@ -592,12 +665,41 @@ def _content_to_messages(item: Content) -> list:
                     "function": {"name": fc.name, "arguments": json.dumps(fc.args, default=str)},
                 }],
             })
+        elif part.image_url:
+            image_urls.append(part.image_url)
         elif part.text:
             text_bits.append(part.text)
 
-    if text_bits:
-        messages.insert(0, {"role": role, "content": "\n".join(text_bits)})
+    if text_bits or image_urls:
+        messages.insert(0, {"role": role, "content": _user_content(text_bits, image_urls)})
     return messages
+
+
+def _flatten_old_images(message: dict) -> dict:
+    """
+    Replace images in carried-over history with a text note.
+
+    Discord attachment URLs are signed and expire, and re-sending every image
+    of the conversation on every turn is a waste — the model already described
+    what it saw in its reply.
+    """
+    content = message.get('content')
+    if not isinstance(content, list):
+        return message
+
+    text_bits = []
+    images = 0
+    for block in content:
+        if not isinstance(block, dict):
+            continue
+        if block.get('type') == 'image_url':
+            images += 1
+        elif block.get('type') == 'text' and block.get('text'):
+            text_bits.append(block['text'])
+
+    if images:
+        text_bits.append(f"[{images} image(s) sent earlier in the conversation]")
+    return {**message, 'content': "\n".join(text_bits)}
 
 
 def _normalize_history(history) -> list:
@@ -605,9 +707,9 @@ def _normalize_history(history) -> list:
     messages = []
     for item in history or []:
         if isinstance(item, Content):
-            messages.extend(_content_to_messages(item))
+            messages.extend(_flatten_old_images(m) for m in _content_to_messages(item))
         elif isinstance(item, dict):
-            messages.append(item)
+            messages.append(_flatten_old_images(item))
     return messages
 
 

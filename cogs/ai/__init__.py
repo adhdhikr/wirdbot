@@ -7,7 +7,8 @@ from nextcord.ext import commands
 
 from config import OPENROUTER_API_KEY
 
-from .llm import OpenRouterClient
+from .attachments import build_attachment_parts
+from .llm import OpenRouterClient, Part
 from .prompts import get_system_prompt
 from .router import ROUTING_ENABLED, reasoning_for, select_model, thinks
 from .tools import ADMIN_TOOLS, BOT_MANAGEMENT_TOOLS, CUSTOM_TOOLS
@@ -66,33 +67,14 @@ class AICog(commands.Cog):
                 else:
                      history = await build_chat_history(self.bot, message, self.context_pruning_markers)
                 
-                # 2. Image Analysis (Pre-routing)
-                image_analysis_text = ""
-                if message.attachments:
-                    valid_exts = {'png', 'jpg', 'jpeg', 'gif', 'webp'}
-                    target_att = next((a for a in message.attachments if a.filename.split('.')[-1].lower() in valid_exts), None)
-                    
-                    if target_att:
-                        status_msg = await message.reply("🔍 Analyzing image for routing...", mention_author=False)
-                        self.active_tasks[status_msg.id] = current_task
-                        tracked_msg_ids.append(status_msg.id)
-                        
-                        try:
-                            from .tools.vision import analyze_image
-                            description = await analyze_image(target_att.url, question="Describe this image in extreme detail for context.")
-                            image_analysis_text = f"\n[System: User uploaded an Image. Description: {description}]"
-                        except Exception as e:
-                            logger.error(f"Pre-routing image analysis failed: {e}")
-                            image_analysis_text = "\n[System: Image upload failed analysis.]"
-                            
-                        try:
-                            await status_msg.delete()
-                        except Exception:
-                            pass
-                        self.active_tasks.pop(status_msg.id, None)
+                # 2. Attachments — images go to the model directly, text files
+                #    are inlined, anything else is mentioned by name.
+                image_parts, attachment_note = await build_attachment_parts(message.attachments)
+                if attachment_note:
+                    attachment_note = "\n" + attachment_note
 
                 # 3. Model selection (one model unless AI_ROUTING_ENABLED)
-                selected_model = await select_model(message.content, image_analysis_text)
+                selected_model = await select_model(message.content, attachment_note)
                 is_thinking_model = thinks(selected_model)
 
                 status_text = THINKING_LINE if is_thinking_model else GENERATING_LINE
@@ -152,12 +134,14 @@ class AICog(commands.Cog):
                     f"User {message.author.display_name} ({message.author.id}): {message.content}\n"
                     f"[System: THIS IS THE CURRENT MESSAGE. REPLY TO THIS.]\n"
                     f"[System Context: Current Channel ID: {message.channel.id}{guild_ctx_str}]\n"
-                    f"{image_analysis_text}{time_gap_note}{memory_context}"
+                    f"{attachment_note}{time_gap_note}{memory_context}"
                 )
-                
+                # Images ride along as real image parts, so the model sees them itself.
+                turn_content = [Part(text=user_msg)] + image_parts
+
                 # 8. Delegation to Handler
                 allowed_tool_names = {t.__name__ for t in allowed_tools}
-                await self.chat_handler.process_chat_turn(chat, user_msg, message, sent_message=sent_message, allowed_tool_names=allowed_tool_names)
+                await self.chat_handler.process_chat_turn(chat, turn_content, message, sent_message=sent_message, allowed_tool_names=allowed_tool_names)
                 
                 if message.channel.id not in self.context_pruning_markers:
                     self.chat_histories[message.channel.id] = getattr(chat, '_curated_history', getattr(chat, 'history', []))

@@ -99,10 +99,11 @@ Use these for any web research task. Work strategically:
 **Example:** User asks "how do I install pandas?"
 1. Search: `search_web("pandas installation guide")`
 2. Read focused: `read_url("https://pandas.pydata.org/docs/getting_started/install.html", section="installation")`
-* **Trigger:** When a user asks a question about an image, or when you need to analyze an image extracted from a PDF.
+* **You see images directly.** Images attached to the message you are answering are given to you as images — look at them and answer. Do NOT call a tool to describe an image that is already in front of you, and never claim you cannot see images.
+* Text files attached to the message are inlined into it for you as well.
+* **Trigger for `analyze_image`:** only for images you do NOT already have — a file in the user's space (e.g. `doc_p1_img1.png`), an image extracted from a PDF, or an image from an older message you can only see as a URL.
 * **Arguments:** `analyze_image(image_input, question)`
-  * `image_input`: Can be a URL **OR** a filename from user space (e.g. `doc_p1_img1.png`).
-* **Behavior:** Re-analyzes the specified image with your specific question.
+  * `image_input`: Can be a URL **OR** a filename from user space.
 *   **Search (`search_channel_history`)**:
     *   **MANDATORY TRIGGER**: Any time the user says "earlier", "previously", "remember when", "check logs", or "what did I say about X", and you do NOT see it in your current context window.
     *   **Action**: IMMEDIATELY call `search_channel_history(query)`.
@@ -217,7 +218,7 @@ PROMPT_FOOTER = """
 
 3.  **Complex Actions**:
     *   Use `force_bot_status` to change activity.
-    *   Use `analyze_image` to re-examine visual content.
+    *   Use `analyze_image` only for images not already attached to the current message (user space files, PDF extracts, older messages).
     *   Use `run_python_script` for safe math/RNG.
     *   Use `remember_info`/`get_my_memories` for long-term context.
     *   Use `search_channel_history` to find missing context.

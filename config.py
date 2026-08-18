@@ -14,12 +14,12 @@ OPENROUTER_APP_URL = os.getenv("OPENROUTER_APP_URL", "https://github.com/wirdbot
 OPENROUTER_APP_NAME = os.getenv("OPENROUTER_APP_NAME", "WirdBot")
 
 # Models (OpenRouter slugs). Override in .env without touching code.
-# One model handles every chat by default.
-AI_MODEL = os.getenv("AI_MODEL", "deepseek/deepseek-v4-pro")
+# One vision-capable model handles every chat, images included.
+AI_MODEL = os.getenv("AI_MODEL", "qwen/qwen3-vl-8b-instruct")
 # Reasoning effort: "none" disables thinking, otherwise low/medium/high.
 AI_REASONING = os.getenv("AI_REASONING", "low")
-# Images always go to a vision-capable model, whatever the chat model is.
-AI_VISION_MODEL = os.getenv("AI_VISION_MODEL", "qwen/qwen3-vl-8b-instruct")
+# The analyze_image tool (for files already in a user's space) — same model by default.
+AI_VISION_MODEL = os.getenv("AI_VISION_MODEL", AI_MODEL)
 
 # Optional two-tier routing: a cheap classifier picks a small or big model per
 # message. Off by default — AI_MODEL answers everything.
@@ -30,8 +30,17 @@ AI_ROUTER_MODEL = os.getenv("AI_ROUTER_MODEL", "qwen/qwen3.7-flash")
 AI_COMPLEX_REASONING = os.getenv("AI_COMPLEX_REASONING", AI_REASONING)
 AI_SIMPLE_REASONING = os.getenv("AI_SIMPLE_REASONING", "low")
 
-# Rough cap on how much conversation we resend each turn (characters, not tokens).
-AI_MAX_HISTORY_CHARS = int(os.getenv("AI_MAX_HISTORY_CHARS", "120000"))
+# Context budget, enforced per request (estimated tokens, ~4 chars each).
+# Covers the system prompt, tool schemas and conversation; the oldest turns are
+# dropped until the request fits, leaving room for the reply.
+AI_MAX_CONTEXT_TOKENS = int(os.getenv("AI_MAX_CONTEXT_TOKENS", "48000"))
+# A single tool result (web page, file dump) is truncated to this before it
+# enters the conversation — otherwise one big page poisons every later turn.
+AI_MAX_TOOL_RESULT_CHARS = int(os.getenv("AI_MAX_TOOL_RESULT_CHARS", "12000"))
+# Text attachments are inlined into the message up to this size.
+AI_MAX_ATTACHMENT_CHARS = int(os.getenv("AI_MAX_ATTACHMENT_CHARS", "20000"))
+# How many images from one message are handed to the model.
+AI_MAX_IMAGES = int(os.getenv("AI_MAX_IMAGES", "4"))
 CLOUDCONVERT_API_KEY = os.getenv("CLOUDCONVERT_API_KEY")
 API_BASE_URL = os.getenv("API_BASE_URL", "http://localhost:5000")
 
