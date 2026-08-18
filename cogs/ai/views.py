@@ -181,7 +181,6 @@ class SandboxExecutionView(discord.ui.View):
 
         if self.reasoning_logs:
             think_btn = discord.ui.Button(
-                label=f"Thoughts ({len(self.reasoning_logs)})" if len(self.reasoning_logs) > 1 else "Thoughts",
                 style=discord.ButtonStyle.secondary,
                 emoji="🧠",
                 custom_id="ai_reasoning"
