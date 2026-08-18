@@ -19,6 +19,9 @@ logger = logging.getLogger(__name__)
 LOADING_EMOJI = "<a:loading:1466182602317889576>"
 THINKING_LINE = f"-# {LOADING_EMOJI} 🧠 Thinking..."
 GENERATING_LINE = f"-# {LOADING_EMOJI} Generating..."
+# Replaces the thinking line once the reasoning comes back, and stays on the
+# finished message — the 🧠 button next to it opens what was thought.
+DONE_THINKING_LINE = "-# 🧠 Done thinking"
 
 # ---------------------------------------------------------------------------
 # Per-tool human-readable label builder
@@ -250,6 +253,16 @@ class ChatHandler:
          current_reasoning = getattr(response, 'reasoning', '')
          if current_reasoning and current_reasoning not in reasoning_logs:
              reasoning_logs.append(current_reasoning)
+
+         # The reasoning arrives with the response, so by now the thinking is
+         # over: close that line off before anything else touches the message.
+         if current_reasoning and existing_message and THINKING_LINE in existing_message.content:
+             try:
+                 done_content = existing_message.content.replace(THINKING_LINE, DONE_THINKING_LINE)
+                 existing_message = await existing_message.edit(content=done_content)
+             except Exception as e:
+                 logger.error(f"Failed to close the thinking line: {e}")
+
          try:
             if tool_count >= MAX_TOOL_CALLS:
                 ctx = await self.bot.get_context(message)
@@ -454,17 +467,17 @@ class ChatHandler:
                  if accumulated_text.strip():
                     sent_message = await self._emit_text(message, sent_message, accumulated_text)
                     accumulated_text = ""
-                 if getattr(chat_session, 'is_pro_model', False):
-                     if sent_message:
-                         current_content = sent_message.content
-                         loading_pattern = r"-# <a:loading:\d+> Generating\.\.\."
-                         if re.search(loading_pattern, current_content):
-                             new_content = re.sub(loading_pattern, THINKING_LINE, current_content)
-                             sent_message = await sent_message.edit(content=new_content)
-                         elif THINKING_LINE not in current_content:
-                             sent_message = await sent_message.edit(content=current_content + "\n" + THINKING_LINE)
-                     else:
-                         sent_message = await message.reply(THINKING_LINE)
+                 # Thinking for this step is already done and marked; what
+                 # follows is the model working on the tool results.
+                 if sent_message:
+                     current_content = sent_message.content
+                     if THINKING_LINE in current_content:
+                         current_content = current_content.replace(THINKING_LINE, DONE_THINKING_LINE)
+                         sent_message = await sent_message.edit(content=current_content)
+                     if GENERATING_LINE not in current_content:
+                         sent_message = await sent_message.edit(content=current_content + "\n" + GENERATING_LINE)
+                 else:
+                     sent_message = await message.reply(GENERATING_LINE)
                  next_response = await chat_session.send_message(tool_responses)
                  return await self.process_chat_response(chat_session, next_response, message, sent_message, tool_count=tool_count+1, execution_logs=execution_logs, allowed_tool_names=allowed_tool_names, reasoning_logs=reasoning_logs)
             
