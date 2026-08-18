@@ -1,5 +1,8 @@
 import logging
 import nextcord as discord
+
+from config import AI_BACKLOG_CHARS_DM, AI_BACKLOG_CHARS_GUILD
+
 from .llm import types
 
 logger = logging.getLogger(__name__)
@@ -27,7 +30,7 @@ async def build_chat_history(bot: discord.Client, message: discord.Message, cont
             break
             
     is_dm = isinstance(message.channel, discord.DMChannel)
-    char_limit = 14000 if is_dm else 6000
+    char_limit = AI_BACKLOG_CHARS_DM if is_dm else AI_BACKLOG_CHARS_GUILD
     
     current_chars = 0
     recent_msgs = []

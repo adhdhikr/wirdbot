@@ -33,7 +33,7 @@ AI_SIMPLE_REASONING = os.getenv("AI_SIMPLE_REASONING", "low")
 # Context budget, enforced per request (estimated tokens, ~4 chars each).
 # Covers the system prompt, tool schemas and conversation; the oldest turns are
 # dropped until the request fits, leaving room for the reply.
-AI_MAX_CONTEXT_TOKENS = int(os.getenv("AI_MAX_CONTEXT_TOKENS", "48000"))
+AI_MAX_CONTEXT_TOKENS = int(os.getenv("AI_MAX_CONTEXT_TOKENS", "200000"))
 # A single tool result (web page, file dump) is truncated to this before it
 # enters the conversation — otherwise one big page poisons every later turn.
 AI_MAX_TOOL_RESULT_CHARS = int(os.getenv("AI_MAX_TOOL_RESULT_CHARS", "12000"))
@@ -41,6 +41,9 @@ AI_MAX_TOOL_RESULT_CHARS = int(os.getenv("AI_MAX_TOOL_RESULT_CHARS", "12000"))
 AI_MAX_ATTACHMENT_CHARS = int(os.getenv("AI_MAX_ATTACHMENT_CHARS", "20000"))
 # How many images from one message are handed to the model.
 AI_MAX_IMAGES = int(os.getenv("AI_MAX_IMAGES", "4"))
+# How much channel backlog is pulled in when a conversation starts (characters).
+AI_BACKLOG_CHARS_DM = int(os.getenv("AI_BACKLOG_CHARS_DM", "120000"))
+AI_BACKLOG_CHARS_GUILD = int(os.getenv("AI_BACKLOG_CHARS_GUILD", "60000"))
 CLOUDCONVERT_API_KEY = os.getenv("CLOUDCONVERT_API_KEY")
 API_BASE_URL = os.getenv("API_BASE_URL", "http://localhost:5000")
 
