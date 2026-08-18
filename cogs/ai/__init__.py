@@ -9,7 +9,7 @@ from config import OPENROUTER_API_KEY
 
 from .llm import OpenRouterClient
 from .prompts import get_system_prompt
-from .router import COMPLEX_MODEL, SIMPLE_MODEL, evaluate_complexity, reasoning_for
+from .router import ROUTING_ENABLED, reasoning_for, select_model, thinks
 from .tools import ADMIN_TOOLS, BOT_MANAGEMENT_TOOLS, CUSTOM_TOOLS
 from .tools.memory import fetch_user_memory_context
 from .history import build_chat_history
@@ -91,26 +91,11 @@ class AICog(commands.Cog):
                             pass
                         self.active_tasks.pop(status_msg.id, None)
 
-                # 3. Model Complexity Routing
-                combined_context = message.content + image_analysis_text
-                msg_content_lower = message.content.lower()
-                
-                force_pro = any(kw in msg_content_lower for kw in ["use pro", "force pro", "pro model", "pro brain", "big model", "think hard"])
-                force_flash = any(kw in msg_content_lower for kw in ["use flash", "force flash", "flash model", "fast model", "small model"])
-                
-                if force_pro:
-                    complexity = "COMPLEX"
-                elif force_flash:
-                    complexity = "SIMPLE"
-                elif len(message.content) < 100 and not image_analysis_text:
-                    complexity = "SIMPLE"
-                else:
-                    complexity = await evaluate_complexity(combined_context)
-                     
-                selected_model = COMPLEX_MODEL if complexity == "COMPLEX" else SIMPLE_MODEL
-                logger.info(f"Smart Routing: {complexity} -> {selected_model}")
-                
-                status_text = THINKING_LINE if selected_model == COMPLEX_MODEL else "-# <a:loading:1466182602317889576> Generating..."
+                # 3. Model selection (one model unless AI_ROUTING_ENABLED)
+                selected_model = await select_model(message.content, image_analysis_text)
+                is_thinking_model = thinks(selected_model)
+
+                status_text = THINKING_LINE if is_thinking_model else "-# <a:loading:1466182602317889576> Generating..."
                 sent_message = await message.reply(status_text)
                 self.active_tasks[sent_message.id] = current_task
                 tracked_msg_ids.append(sent_message.id)
@@ -157,7 +142,9 @@ class AICog(commands.Cog):
                     system_instruction=get_system_prompt(is_admin=is_admin, is_owner=is_owner, whitelisted_guild=whitelisted_guild),
                     reasoning=reasoning_for(selected_model),
                 )
-                chat.is_pro_model = (selected_model == COMPLEX_MODEL)
+                chat.is_pro_model = is_thinking_model
+                # Only worth naming the model when routing means it varies.
+                chat.show_model_header = ROUTING_ENABLED and is_thinking_model
                 chat.model_name = selected_model
                 
                 guild_ctx_str = f", Guild ID: {message.guild.id}" if message.guild else ", Guild: None (DM)"

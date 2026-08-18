@@ -14,16 +14,24 @@ OPENROUTER_APP_URL = os.getenv("OPENROUTER_APP_URL", "https://github.com/wirdbot
 OPENROUTER_APP_NAME = os.getenv("OPENROUTER_APP_NAME", "WirdBot")
 
 # Models (OpenRouter slugs). Override in .env without touching code.
-AI_COMPLEX_MODEL = os.getenv("AI_COMPLEX_MODEL", "deepseek/deepseek-v4-pro")
-AI_SIMPLE_MODEL = os.getenv("AI_SIMPLE_MODEL", "qwen/qwen3.7-flash")
-AI_ROUTER_MODEL = os.getenv("AI_ROUTER_MODEL", "qwen/qwen3.7-flash")
+# One model handles every chat by default.
+AI_MODEL = os.getenv("AI_MODEL", "deepseek/deepseek-v4-pro")
+# Reasoning effort: "none" disables thinking, otherwise low/medium/high.
+AI_REASONING = os.getenv("AI_REASONING", "high")
+# Images always go to a vision-capable model, whatever the chat model is.
 AI_VISION_MODEL = os.getenv("AI_VISION_MODEL", "qwen/qwen3.7-flash")
 
-# Reasoning effort per tier: "none" disables thinking, otherwise low/medium/high.
+# Optional two-tier routing: a cheap classifier picks a small or big model per
+# message. Off by default — AI_MODEL answers everything.
+AI_ROUTING_ENABLED = os.getenv("AI_ROUTING_ENABLED", "false").lower() == "true"
+AI_COMPLEX_MODEL = os.getenv("AI_COMPLEX_MODEL", AI_MODEL)
+AI_SIMPLE_MODEL = os.getenv("AI_SIMPLE_MODEL", "qwen/qwen3.7-flash")
+AI_ROUTER_MODEL = os.getenv("AI_ROUTER_MODEL", "qwen/qwen3.7-flash")
+AI_COMPLEX_REASONING = os.getenv("AI_COMPLEX_REASONING", AI_REASONING)
+AI_SIMPLE_REASONING = os.getenv("AI_SIMPLE_REASONING", "low")
+
 # Rough cap on how much conversation we resend each turn (characters, not tokens).
 AI_MAX_HISTORY_CHARS = int(os.getenv("AI_MAX_HISTORY_CHARS", "120000"))
-AI_COMPLEX_REASONING = os.getenv("AI_COMPLEX_REASONING", "high")
-AI_SIMPLE_REASONING = os.getenv("AI_SIMPLE_REASONING", "low")
 CLOUDCONVERT_API_KEY = os.getenv("CLOUDCONVERT_API_KEY")
 API_BASE_URL = os.getenv("API_BASE_URL", "http://localhost:5000")
 

@@ -472,7 +472,7 @@ class ChatHandler:
                  return await self.process_chat_response(chat_session, next_response, message, sent_message, tool_count=tool_count+1, execution_logs=execution_logs, allowed_tool_names=allowed_tool_names, reasoning_logs=reasoning_logs)
             
             if accumulated_text.strip():
-                if getattr(chat_session, 'is_pro_model', False):
+                if getattr(chat_session, 'show_model_header', False):
                     model_label = str(getattr(chat_session, 'model_name', '')).split('/')[-1]
                     header = f"**Using {model_label} 🧠**\n\n" if model_label else "**Using pro model 🧠**\n\n"
                     if not accumulated_text.startswith(header):
